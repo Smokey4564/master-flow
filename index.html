@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Master Flow v4.3.2</title>
+    <style>
+        /* Core Dark Theme Layout Protection Styles */
+        :root {
+            --purple: #a855f7;
+            --card-bg: #1e1e2e;
+            --border: #3f3f46;
+            --text-dim: #a1a1aa;
+            --text-main: #ffffff;
+            --success: #22c55e;
+            --danger: #ef4444;
+            --navy: #181825;
+        }
+        body {
+            background-color: #09090b;
+            color: var(--text-main);
+            font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            margin: 0;
+            padding: 10px;
+        }
+        .container {
+            max-width: 600px;
+            margin: 0 auto;
+        }
+        header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 15px 10px;
+            border-bottom: 1px solid var(--border);
+            margin-bottom: 15px;
+        }
+        .rpg-badge-bar {
+            background: var(--navy);
+            padding: 6px 12px;
+            border-radius: 20px;
+            border: 1px solid var(--border);
+            font-weight: bold;
+            font-size: 0.9rem;
+        }
+        .tab-btn {
+            background: transparent;
+            color: var(--text-dim);
+            border: none;
+            padding: 8px 12px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: bold;
+            font-size: 0.9rem;
+        }
+        .tab-btn.active {
+            background: var(--purple);
+            color: white;
+        }
+        .page {
+            display: none;
+        }
+        .page.active {
+            display: block;
+        }
+        .panel {
+            background: var(--card-bg);
+            border: 1px solid var(--border);
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 15px;
+        }
+        .panel h2 {
+            margin-top: 0;
+            margin-bottom: 15px;
+            font-size: 1.2rem;
+        }
+        .cards-stack {
+            margin-top: 15px;
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <header>
+        <div>
+            <h1 style="margin:0; font-size: 1.5rem;">Master Flow <span style="font-size:0.8rem; color:var(--purple);">v4.3.2</span></h1>
+            <div id="cloud-status" style="font-size:0.7rem; color:var(--text-dim); margin-top:2px;">Engine Standby...</div>
+        </div>
+        <div class="rpg-badge-bar">
+            <span id="top-wallet">💰 $0.00</span>
+            <span style="opacity:0.2; padding:0 2px;">|</span>
+            <span id="top-gold">🪙 0 Gold</span>
+        </div>
+    </header>
+
+    <div class="nav-bar" style="margin-bottom: 15px; display:flex; justify-content:space-around; background:var(--card-bg); padding:10px; border-radius:8px; border:1px solid var(--border);">
+        <button class="tab-btn active" onclick="window.switchTab('quests')">⚔️ Quests</button>
+        <button class="tab-btn" onclick="window.switchTab('wallet')">📬 Wallet</button>
+        <button class="tab-btn" onclick="window.switchTab('summary')">📊 Summary</button>
+        <button class="tab-btn" onclick="window.switchTab('manage')">⚙️ Settings</button>
+    </div>
+
+    <div class="account-bar-panel" style="background:var(--card-bg); padding:12px; border-radius:8px; margin-bottom:15px; border:1px solid var(--border);">
+        <label style="margin:0; font-size:0.75rem; text-transform:uppercase; color:var(--text-dim); font-weight:bold;">Active Hero Identity Link</label>
+        <div style="display: flex; gap: 8px; margin-top: 4px;">
+            <select id="global-player-select" onchange="window.switchPlayerProfile()" style="padding: 8px; font-size:0.9rem; flex: 2; height:38px; background:#27272a; color:white; border:1px solid var(--border); border-radius:6px;">
+                <option value="angel">Angel (Account 1)</option>
+                <option value="brianna">Brianna (Account 2)</option>
+            </select>
+        </div>
+    </div>
+
+    <div id="quests" class="page active">
+        <div class="panel" id="character-chart-panel">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+                <h2 style="margin:0;" id="render-hero-title">👑 Loading Hero...</h2>
+                <span id="render-hero-level" style="background:var(--purple); color:white; padding:2px 8px; border-radius:12px; font-weight:bold; font-size:0.85rem;">LVL 1</span>
+            </div>
+
+            <div class="class-selector-zone" style="margin-top: 10px; padding: 5px 0; margin-bottom: 15px;">
+                <label for="hero-class-select" style="font-size: 0.8rem; color: var(--text-dim); display: block; margin-bottom: 4px;">CHOOSE YOUR PATH:</label>
+                <select id="hero-class-select" onchange="window.updateCharacterClass()" style="background: #1a1a2e; color: #ffd700; border: 1px solid #8a2be2; padding: 6px; border-radius: 4px; font-weight: bold; width: 100%; cursor: pointer;">
+                    <option value="warrior" style="color: black; background: white;">🛡️ Guardian Knight (Warrior)</option>
+                    <option value="mage" style="color: black; background: white;">🔮 Grand Archmage (Mage)</option>
+                    <option value="rogue" style="color: black; background: white;">⚡ Shadow Assassin (Rogue)</option>
+                </select>
+            </div>
+            
+            <div style="background:#27272a; border-radius:6px; height:14px; width:100%; overflow:hidden; margin-bottom:12px; border:1px solid #3f3f46; position:relative;">
+                <div id="render-xp-bar" style="background:linear-gradient(90deg, var(--purple), #a855f7); width:0%; height:100%; transition:width 0.4s ease;"></div>
+                <div id="render-xp-text" style="position:absolute; width:100%; text-align:center; top:0; left:0; font-size:0.65rem; font-weight:bold; line-height:14px; color:white;">0 / 100 XP</div>
+            </div>
+
+            <div style="display:grid; grid-template-columns: 1fr 1fr; gap:10px; font-size:0.85rem; color:var(--text-dim);" id="character-matrix-slots">
+                <div>❤️ HP: <span id="stat-hp" style="color:var(--text-main); font-weight:bold;">--</span></div>
+                <div>🔮 MP: <span id="stat-mp" style="color:var(--text-main); font-weight:bold;">--</span></div>
+                <div>⚔️ ATK: <span id="stat-atk" style="color:var(--text-main); font-weight:bold;">--</span></div>
+                <div>🛡️ DEF: <span id="stat-def" style="color:var(--text-main); font-weight:bold;">--</span></div>
+            </div>
+        </div>
+
+        <div class="panel">
+            <h2>⚔️ Post a Guild Notice (New Quest)</h2>
+            <form id="quest-form">
+                <input type="text" id="quest-name" placeholder="Quest Objective Name..." required style="width:100%; padding:10px; margin-bottom:10px; background:#27272a; color:white; border:1px solid var(--border); border-radius:6px; box-sizing:border-box;">
+                <div style="display:flex; gap:10px; margin-bottom:10px;">
+                    <input type="date" id="quest-date" required style="flex:1; padding:10px; background:#27272a; color:white; border:1px solid var(--border); border-radius:6px;">
+                    <input type="time" id="quest-time" style="flex:1; padding:10px; background:#27272a; color:white; border:1px solid var(--border); border-radius:6px;">
+                </div>
+                <textarea id="quest-notes" placeholder="Optional Quest Details / Notes / Requirements..." rows="2" style="width:100%; margin-bottom:10px; padding:10px; border:1px solid var(--border); background-color:#27272a; color:white; border-radius:6px; box-sizing:border-box; font-family:inherit;"></textarea>
+                <div style="display:flex; gap:10px; margin-bottom:10px;">
+                    <select id="quest-category" style="flex:1; padding:10px; background:#27272a; color:white; border:1px solid var(--border); border-radius:6px;">
+                        <option value="📚 School/Studying">📚 School/Studying</option>
+                        <option value="🏠 House Task">🏠 House Task</option>
+                        <option value="💼 Work/Career">💼 Work/Career</option>
+                        <option value="💻 Coding/App Dev">💻 Coding/App Dev</option>
+                        <option value="💪 Fitness/Gym">💪 Fitness/Gym</option>
+                        <option value="🌲 Outdoor/Chill">🌲 Outdoor/Chill</option>
+                        <option value="💅 Personal Care">💅 Personal Care</option>
+                        <option value="🎮 Digital/Game Time">🎮 Digital/Game Time</option>
+                        <option value="❤️ Family Time">❤️ Family Time</option>
+                        <option value="🙏 Worship/Devotion">🙏 Worship/Devotion</option>
+                        <option value="🛠️ Maintenance/Repairs">🛠️ Maintenance/Repairs</option>
+                        <option value="🛒 Errands/Shopping">🛒 Errands/Shopping</option>
+                        <option value="🎯 Personal Habit">🎯 Personal Habit</option>
+                    </select>
+                    <select id="quest-difficulty" style="flex:1; padding:10px; background:#27272a; color:white; border:1px solid var(--border); border-radius:6px;">
+                        <option value="common">Common (25 XP / 10 Gold)</option>
+                        <option value="rare">Rare (60 XP / 25 Gold)</option>
+                        <option value="epic">Epic (120 XP / 50 Gold)</option>
+                    </select>
+                </div>
+                <button type="submit" class="btn-submit" style="width:100%; background:var(--purple); color:white; border:none; padding:12px; border-radius:6px; font-weight:bold; cursor:pointer;">Post to Board</button>
+            </form>
+        </div>
+
+        <div id="quests-board" class="cards-stack"></div>
+    </div>
+
+    <div id="wallet" class="page">
+        <div class="panel">
+            <h2>📬 Quick Spend Log</h2>
+            <p style="font-size: 0.8rem; color: var(--text-dim); margin-top: -8px; margin-bottom: 12px; line-height: 1.3;">
+                Instantly record your spending. Selecting an envelope and entering an amount will deduct it from that balance and log it straight to your dynamic history ledger.
+            </p>
+            <form id="trans-form">
+                <select id="trans-envelope" required style="width:100%; padding:10px; margin-bottom:10px; background:#27272a; color:white; border:1px solid var(--border); border-radius:6px;"></select>
+                
+                <input type="text" id="trans-memo" placeholder="What did you buy? (e.g., Red Bull, Groceries)..." required style="width:100%; padding:10px; margin-bottom:10px; background:#27272a; color:white; border:1px solid var(--border); border-radius:6px; box-sizing:border-box;">
+                
+                <input type="number" id="trans-amount" step="0.01" placeholder="Amount ($0.00)" required style="width:100%; padding:10px; margin-bottom:10px; background:#27272a; color:white; border:1px solid var(--border); border-radius:6px; box-sizing:border-box;">
+                
+                <button type="submit" class="btn-submit" style="width:100%; background:var(--purple); color:white; border:none; padding:12px; border-radius:6px; font-weight:bold; cursor:pointer;">Process Deduction</button>
+            </form>
+        </div>
+        <div id="envelopes-stack" class="cards-stack"></div>
+    </div>
+
+    <div id="summary" class="page">
+        <div class="panel" style="width:100%; box-sizing:border-box;">
+            <h2>Financial Health Summary</h2>
+            <div class="summary-grid" style="display:grid; grid-template-columns: 1fr 1fr; gap:12px; margin-bottom:15px;">
+                <div class="summary-box" style="background:var(--navy); padding:16px; border-radius:8px; text-align:center; border:1px solid var(--border);">
+                    <h4 style="margin:0; font-size:0.8rem; color:var(--text-dim);">Total Budget Allocated</h4>
+                    <p id="sum-allocated" style="margin:8px 0 0 0; font-size:1.3rem; font-weight:bold;">$0.00</p>
+                </div>
+                <div class="summary-box" style="background:var(--navy); padding:16px; border-radius:8px; text-align:center; border:1px solid var(--border);">
+                    <h4 style="margin:0; font-size:0.8rem; color:var(--text-dim);">Total Safe Balance</h4>
+                    <p id="sum-remaining" style="margin:8px 0 0 0; font-size:1.3rem; font-weight:bold; color:var(--success);">$0.00</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="panel" style="width:100%; box-sizing:border-box;">
+            <h2>📜 Historical Ledger Log</h2>
+            <div style="overflow-x:auto;">
+                <table style="width:100%; text-align:left; border-collapse:collapse; font-size:0.9rem;">
+                    <thead>
+                        <tr style="border-bottom:1px solid var(--border); color:var(--text-dim);">
+                            <th style="padding:8px;">Date</th>
+                            <th style="padding:8px;">Category</th>
+                            <th style="padding:8px;">Objective</th>
+                            <th style="padding:8px;">Notes</th>
+                        </tr>
+                    </thead>
+                    <tbody id="journal-table-body">
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <div id="manage" class="page">
+        <div class="panel">
+            <h2>Global Controls</h2>
+            <button class="btn-submit" style="background:var(--danger); width:100%; color:white; border:none; padding:12px; border-radius:6px; font-weight:bold; cursor:pointer;" onclick="window.wipeEntireEngine()">Wipe Current Profile (Reset)</button>
+        </div>
+    </div>
+</div>
+
+<script type="module" src="script.js"></script>
+</body>
+</html>
