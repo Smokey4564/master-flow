@@ -78,11 +78,68 @@
         .cards-stack {
             margin-top: 15px;
         }
+        .master-card {
+            background: var(--card-bg);
+            border-radius: 8px;
+            padding: 12px 16px;
+            margin-bottom: 10px;
+            border-left: 4px solid transparent;
+            position: relative;
+        }
+        .tier-common {
+            border-left-color: #888;
+            background: rgba(136,136,136,0.07);
+        }
+        .tier-rare {
+            border-left-color: #4a90e2;
+            background: rgba(74,144,226,0.10);
+        }
+        .tier-epic {
+            border-left-color: #a855f7;
+            background: rgba(168,85,247,0.12);
+        }
+        .hold-progress-bar {
+            position: absolute;
+            top: 0;
+            left: 0;
+            height: 4px;
+            width: 0%;
+            background: linear-gradient(90deg,#a855f7,#7c3aed);
+            transition: width 0.1s linear;
+            border-radius: 2px 2px 0 0;
+        }
+        .time-badge {
+            display: inline-block;
+            font-size: 0.72rem;
+            background: rgba(255,255,255,0.08);
+            border-radius: 12px;
+            padding: 2px 8px;
+            margin-left: 6px;
+            color: #bbb;
+        }
+        @keyframes completedBurst {
+            from { transform: scale(1); opacity: 1; }
+            to { transform: scale(1.04); opacity: 0; }
+        }
+        .completed-burst {
+            animation: completedBurst 0.5s ease forwards;
+        }
+        .overdue {
+            border-left-color: #ef4444;
+            background: rgba(239,68,68,0.09);
+        }
+        .overdue-badge {
+            font-size: 0.7rem;
+            color: #ef4444;
+            font-weight: bold;
+            margin-left: 6px;
+        }
     </style>
 </head>
 <body>
 
 <div class="container">
+    <!-- Header -->
     <header>
         <div>
             <h1 style="margin:0; font-size: 1.5rem;">Master Flow <span style="font-size:0.8rem; color:var(--purple);">v4.3.2</span></h1>
@@ -95,6 +152,7 @@
         </div>
     </header>
 
+    <!-- Navigation -->
     <div class="nav-bar" style="margin-bottom: 15px; display:flex; justify-content:space-around; background:var(--card-bg); padding:10px; border-radius:8px; border:1px solid var(--border);">
         <button class="tab-btn active" onclick="window.switchTab('quests')">⚔️ Quests</button>
         <button class="tab-btn" onclick="window.switchTab('wallet')">📬 Wallet</button>
@@ -102,6 +160,7 @@
         <button class="tab-btn" onclick="window.switchTab('manage')">⚙️ Settings</button>
     </div>
 
+    <!-- Account Bar -->
     <div class="account-bar-panel" style="background:var(--card-bg); padding:12px; border-radius:8px; margin-bottom:15px; border:1px solid var(--border);">
         <label style="margin:0; font-size:0.75rem; text-transform:uppercase; color:var(--text-dim); font-weight:bold;">Active Hero Identity Link</label>
         <div style="display: flex; gap: 8px; margin-top: 4px;">
@@ -112,6 +171,7 @@
         </div>
     </div>
 
+    <!-- Quests Tab -->
     <div id="quests" class="page active">
         <div class="panel" id="character-chart-panel">
             <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
@@ -143,6 +203,7 @@
 
         <div class="panel">
             <h2>⚔️ Post a Guild Notice (New Quest)</h2>
+            <!-- Quest Form -->
             <form id="quest-form">
                 <input type="text" id="quest-name" placeholder="Quest Objective Name..." required style="width:100%; padding:10px; margin-bottom:10px; background:#27272a; color:white; border:1px solid var(--border); border-radius:6px; box-sizing:border-box;">
                 <div style="display:flex; gap:10px; margin-bottom:10px;">
@@ -179,12 +240,14 @@
         <div id="quests-board" class="cards-stack"></div>
     </div>
 
+    <!-- Wallet Tab -->
     <div id="wallet" class="page">
         <div class="panel">
             <h2>📬 Quick Spend Log</h2>
             <p style="font-size: 0.8rem; color: var(--text-dim); margin-top: -8px; margin-bottom: 12px; line-height: 1.3;">
                 Instantly record your spending. Selecting an envelope and entering an amount will deduct it from that balance and log it straight to your dynamic history ledger.
             </p>
+            <!-- Transaction Form -->
             <form id="trans-form">
                 <select id="trans-envelope" required style="width:100%; padding:10px; margin-bottom:10px; background:#27272a; color:white; border:1px solid var(--border); border-radius:6px;"></select>
                 
@@ -195,9 +258,19 @@
                 <button type="submit" class="btn-submit" style="width:100%; background:var(--purple); color:white; border:none; padding:12px; border-radius:6px; font-weight:bold; cursor:pointer;">Process Deduction</button>
             </form>
         </div>
+        <!-- Envelope Form -->
+        <div class="panel">
+            <h2>Create Budget Envelope</h2>
+            <div style="display:flex; flex-direction:column; gap:10px;">
+                <input type="text" id="new-envelope-name" placeholder="Envelope name" style="width:100%; padding:10px; background:#27272a; color:white; border:1px solid var(--border); border-radius:6px; box-sizing:border-box;">
+                <input type="number" id="new-envelope-balance" step="0.01" placeholder="Starting balance" style="width:100%; padding:10px; background:#27272a; color:white; border:1px solid var(--border); border-radius:6px; box-sizing:border-box;">
+                <button id="btn-add-envelope" type="button" class="btn-submit" style="width:100%; background:var(--purple); color:white; border:none; padding:12px; border-radius:6px; font-weight:bold; cursor:pointer;">Create Envelope</button>
+            </div>
+        </div>
         <div id="envelopes-stack" class="cards-stack"></div>
     </div>
 
+    <!-- Summary Tab -->
     <div id="summary" class="page">
         <div class="panel" style="width:100%; box-sizing:border-box;">
             <h2>Financial Health Summary</h2>
@@ -207,7 +280,7 @@
                     <p id="sum-allocated" style="margin:8px 0 0 0; font-size:1.3rem; font-weight:bold;">$0.00</p>
                 </div>
                 <div class="summary-box" style="background:var(--navy); padding:16px; border-radius:8px; text-align:center; border:1px solid var(--border);">
-                    <h4 style="margin:0; font-size:0.8rem; color:var(--text-dim);">Total Safe Balance</h4>
+                    <h4 style="margin:0; font-size:0.8rem; color:var(--text-dim);">Total Spent</h4>
                     <p id="sum-remaining" style="margin:8px 0 0 0; font-size:1.3rem; font-weight:bold; color:var(--success);">$0.00</p>
                 </div>
             </div>
@@ -232,9 +305,16 @@
         </div>
     </div>
 
+    <!-- Settings Tab -->
     <div id="manage" class="page">
         <div class="panel">
             <h2>Global Controls</h2>
+            <!-- Hero Name Form -->
+            <div style="margin-bottom:15px;">
+                <label for="hero-name-input" style="display:block; margin-bottom:6px; font-size:0.8rem; color:var(--text-dim); font-weight:bold;">Hero Name</label>
+                <input type="text" id="hero-name-input" placeholder="Enter your hero name" style="width:100%; padding:10px; margin-bottom:10px; background:#27272a; color:white; border:1px solid var(--border); border-radius:6px; box-sizing:border-box;">
+                <button id="btn-save-hero-name" type="button" class="btn-submit" style="width:100%; background:var(--purple); color:white; border:none; padding:12px; border-radius:6px; font-weight:bold; cursor:pointer;">Save</button>
+            </div>
             <button class="btn-submit" style="background:var(--danger); width:100%; color:white; border:none; padding:12px; border-radius:6px; font-weight:bold; cursor:pointer;" onclick="window.wipeEntireEngine()">Wipe Current Profile (Reset)</button>
         </div>
     </div>
