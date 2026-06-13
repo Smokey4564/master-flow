@@ -1,5 +1,5 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
-import { getFirestore, doc, setDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+import { getFirestore, doc, setDoc, onSnapshot, updateDoc, getDoc, collection } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 
 const firebaseConfig = {
   apiKey: "AIzaSyDD4FGcNxHJT7wDh3hPMqudUYzEmDz8lbw",
@@ -14,6 +14,7 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 
+// PROFILE BLUEPRINT SCHEMA WITH EXTENDED ATTRIBUTES MAP
 const createBlankProfile = () => ({ 
     heroName: '', 
     activeIdentity: 'masc', 
@@ -25,19 +26,33 @@ const createBlankProfile = () => ({
     gold: 0, 
     xp: 0, 
     isLocked: false, 
-    hobbyStats: {}, 
+    attributes: {
+        strength: 1,
+        dexterity: 1,
+        intelligence: 1,
+        endurance: 1,
+        focus: 1
+    },
     journalLog: [], 
     campaign: null 
 });
 
 window.state = createBlankProfile();
 let activePlayerId = localStorage.getItem('masterflow_current_player_id') || 'angel';
-let currentWalletMode = 'spend'; // State management variable tracking spend vs deposit
+let currentWalletMode = 'spend'; 
 
 const dynamicClassMatrix = {
     warrior: { hp: 120, mp: 30, atk: 18, def: 15, title: "🛡️ Guardian Knight" },
     mage: { hp: 70, mp: 120, atk: 25, def: 6, title: "🔮 Grand Archmage" },
     rogue: { hp: 90, mp: 50, atk: 16, def: 9, title: "⚡ Shadow Assassin" }
+};
+
+// MASTER HOUSEHOLD KEYWORD DICTIONARY FOR ACTIVITY DECODER
+const SMART_STAT_DICTIONARY = {
+    strength: ['lift', 'weights', 'bench', 'press', 'squat', 'gym', 'pushup', 'pullup', 'workout'],
+    dexterity: ['carve', 'whittle', 'draw', 'paint', 'lego', 'build', 'guitar', 'piano', 'art', 'craft', 'color'],
+    intelligence: ['code', 'study', 'read', 'math', 'homework', 'science', 'learn', 'book'],
+    endurance: ['run', 'jog', 'bike', 'swim', 'cardio', 'soccer', 'basketball', 'tag', 'skate', 'hike', 'walk']
 };
 
 let holdTimer;
@@ -59,43 +74,109 @@ window.saveState = async function() {
     }
 };
 
-function establishLiveSyncStream() {
-    const statusEl = document.getElementById('cloud-status');
-    if (activeSubListener) activeSubListener(); 
+// =========================================================================
+// 🚀 SMART HOBBY GRIND PARSER ENGINE
+// =========================================================================
+window.executeHobbyGrind = async function() {
+    const activityInput = document.getElementById('hobby-grind-input');
+    if (!activityInput || !activityInput.value.trim()) return alert("What activity did you complete?");
+    
+    const activityName = activityInput.value.trim().toLowerCase();
 
-    const cached = localStorage.getItem(`masterflow_cache_${activePlayerId}`);
-    if(cached) {
-        try {
-            window.state = { ...createBlankProfile(), ...JSON.parse(cached) };
-            window.renderAllEngineSectors();
-            if(statusEl) statusEl.textContent = "✅ Running on Cache";
-        } catch(e) { 
-            console.error("Cache read fail:", e); 
+    // Scan words against dictionary lists to auto-detect appropriate bucket
+    let detectedAttribute = 'focus'; 
+    for (const [attribute, keywords] of Object.entries(SMART_STAT_DICTIONARY)) {
+        if (keywords.some(keyword => activityName.includes(keyword))) {
+            detectedAttribute = attribute;
+            break;
         }
     }
 
-    try {
-        activeSubListener = onSnapshot(
-            doc(db, "households", "OYfoVvk62io4l9lZxm0g", "profiles", activePlayerId), 
-            (docSnap) => {
-                if (docSnap.exists()) {
-                    window.state = { ...createBlankProfile(), ...docSnap.data() };
-                    localStorage.setItem(`masterflow_cache_${activePlayerId}`, JSON.stringify(window.state));
-                    window.renderAllEngineSectors();
-                    if(statusEl) statusEl.textContent = "🟢 Live Cloud Sync Active";
-                } else {
-                    if(statusEl) statusEl.textContent = "🆕 New Profile Ready";
-                }
-            }, 
-            (streamError) => {
-                console.warn("Stream blocked or offline:", streamError);
-                if(statusEl) statusEl.textContent = "⚠️ Stream Error (Offline)";
-            }
-        );
-    } catch(e) {
-        console.error("Failed to establish snapshot pipeline:", e);
+    const householdRef = doc(db, 'households', 'OYfoVvk62io4l9lZxm0g');
+    const profileRef = doc(householdRef, 'profiles', activePlayerId);
+    const profileSnap = await getDoc(profileRef);
+    
+    let currentAttributes = { strength: 1, dexterity: 1, intelligence: 1, focus: 1, endurance: 1 };
+    let oldXp = window.state.xp || 0;
+
+    if (profileSnap.exists()) {
+        const d = profileSnap.data();
+        if (d.attributes) currentAttributes = d.attributes;
+        if (d.xp !== undefined) oldXp = d.xp;
     }
-}
+    
+    const xpReward = 15; 
+    const newXp = oldXp + xpReward;
+    
+    const oldLevel = Math.floor(oldXp / 100) + 1;
+    const newLevel = Math.floor(newXp / 100) + 1;
+
+    currentAttributes[detectedAttribute] = (currentAttributes[detectedAttribute] || 1) + 1;
+
+    window.state.xp = newXp;
+    window.state.attributes = currentAttributes;
+
+    await setDoc(profileRef, window.state, { merge: true });
+
+    alert(`Activity Logged! System detected [${detectedAttribute.toUpperCase()}] for "${activityInput.value}". +${xpReward} XP!`);
+    activityInput.value = '';
+
+    if (newLevel > oldLevel) {
+        const modal = document.getElementById('level-up-modal');
+        const modalText = document.getElementById('modal-level-text');
+        if (modal && modalText) {
+            modalText.innerText = `LEVEL ${newLevel}`;
+            modal.style.display = 'flex';
+        }
+    }
+};
+
+window.closeLevelUpModal = function() {
+    const modal = document.getElementById('level-up-modal');
+    if (modal) modal.style.display = 'none';
+};
+
+// =========================================================================
+// 💸 ENVELOPE-TO-ENVELOPE TRANSFER LOGIC
+// =========================================================================
+window.executeEnvelopeTransfer = async function() {
+    const fromSelect = document.getElementById('transfer-from-select');
+    const toSelect = document.getElementById('transfer-to-select');
+    const amountInput = document.getElementById('transfer-amount-input');
+    
+    if (!fromSelect || !toSelect || !amountInput) return;
+    const amount = parseFloat(amountInput.value);
+    if (isNaN(amount) || amount <= 0) return alert("Please specify a valid financial asset balance.");
+    if (fromSelect.value === toSelect.value) return alert("Source and target envelopes must be distinct.");
+
+    // Parse array tracking indices safely
+    const fromIdx = parseInt(fromSelect.value);
+    const toIdx = parseInt(toSelect.value);
+
+    if (window.state.envelopes && window.state.envelopes[fromIdx] && window.state.envelopes[toIdx]) {
+        const srcEnv = window.state.envelopes[fromIdx];
+        const destEnv = window.state.envelopes[toIdx];
+
+        if (parseFloat(srcEnv.balance) < amount) {
+            return alert("Insufficient reserve allocation in source envelope.");
+        }
+
+        srcEnv.balance = parseFloat(srcEnv.balance) - amount;
+        destEnv.balance = parseFloat(destEnv.balance) + amount;
+
+        if(!window.state.journalLog) window.state.journalLog = [];
+        window.state.journalLog.unshift({
+            date: new Date().toLocaleDateString(),
+            category: `📬 Wallet (${srcEnv.name} ➡️ ${destEnv.name})`,
+            name: `Internal Balance Shifting Allocation`,
+            notes: `$${amount.toFixed(2)}`
+        });
+
+        amountInput.value = '';
+        window.saveState();
+        alert("Asset reallocation processed successfully!");
+    }
+};
 
 window.updateCharacterClass = function() {
     const classSelect = document.getElementById('hero-class-select');
@@ -116,7 +197,6 @@ window.switchPlayerProfile = function() {
     }
 };
 
-// WALLET SYSTEM TOGGLES
 window.setWalletMode = function(mode) {
     currentWalletMode = mode;
     const btn = document.getElementById('trans-submit-btn');
@@ -140,7 +220,6 @@ window.setWalletMode = function(mode) {
     }
 };
 
-// TRANSACTION & EVENT WIREFRAMES
 document.addEventListener('DOMContentLoaded', () => {
     const qForm = document.getElementById('quest-form');
     if(qForm) {
@@ -196,7 +275,6 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    // ESLAM'S ENVELOPE CREATION CAPTURE LISTENER
     const btnAddEnv = document.getElementById('btn-add-envelope');
     if(btnAddEnv) {
         btnAddEnv.addEventListener('click', () => {
@@ -215,7 +293,6 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    // ESLAM'S HERO NAME SAVE CAPTURE LISTENER
     const btnSaveHero = document.getElementById('btn-save-hero-name');
     if(btnSaveHero) {
         btnSaveHero.addEventListener('click', () => {
@@ -272,7 +349,6 @@ window.renderAllEngineSectors = function() {
         classSelect.value = window.state.selectedClass; 
     }
     
-    // Sync text input back up with data values
     const heroInput = document.getElementById('hero-name-input');
     if(heroInput && window.state.heroName) {
         heroInput.placeholder = window.state.heroName;
@@ -307,21 +383,21 @@ window.renderAllEngineSectors = function() {
     if(window.state.envelopes) {
         window.state.envelopes.forEach(e => walletTotal += parseFloat(e.balance || 0));
     }
-    document.getElementById('top-wallet').textContent = `💰 $${walletTotal.toFixed(2)}`;
-    document.getElementById('top-gold').textContent = `🪙 ${window.state.gold || 0} Gold`;
+    const topWalletEl = document.getElementById('top-wallet'); if (topWalletEl) topWalletEl.textContent = `💰 $${walletTotal.toFixed(2)}`;
+    const topGoldEl = document.getElementById('top-gold'); if (topGoldEl) topGoldEl.textContent = `🪙 ${window.state.gold || 0} Gold`;
 
-    const qEnvSelect = document.getElementById('trans-envelope');
-    if(qEnvSelect) {
-        qEnvSelect.innerHTML = '';
-        if(window.state.envelopes) {
-            window.state.envelopes.forEach((e, idx) => {
-                const opt = document.createElement('option');
-                opt.value = idx;
-                opt.textContent = `${e.name} ($${parseFloat(e.balance).toFixed(2)})`;
-                qEnvSelect.appendChild(opt);
-            });
-        }
-    }
+    // Render Dropdowns for transfers
+    const fromSel = document.getElementById('transfer-from-select');
+    const toSel = document.getElementById('transfer-to-select');
+    const transEnvSel = document.getElementById('trans-envelope');
+    
+    const dropdownHtml = (window.state.envelopes || []).map((e, idx) => `
+        <option value="${idx}">${e.name} ($${parseFloat(e.balance || 0).toFixed(2)})</option>
+    `).join('');
+
+    if(fromSel) fromSel.innerHTML = dropdownHtml;
+    if(toSel) toSel.innerHTML = dropdownHtml;
+    if(transEnvSel) transEnvSel.innerHTML = dropdownHtml;
 
     const envStack = document.getElementById('envelopes-stack');
     if(envStack) {
@@ -370,7 +446,6 @@ window.renderAllEngineSectors = function() {
                 const item = document.createElement('div');
                 const safeDifficulty = q.difficulty || 'common';
                 
-                // ESLAM'S DYNAMIC OVERDUE DATE EVALUATOR CACHE PIPELINE
                 let isOverdue = false;
                 if(q.date) {
                     const todayStr = new Date().toISOString().split('T')[0];
@@ -407,7 +482,6 @@ window.renderAllEngineSectors = function() {
         }
     }
 
-    // 📊 REORGANIZED SEPARATE TABLES REDIRECT PIPELINE
     const walletBody = document.getElementById('wallet-ledger-body');
     const questBody = document.getElementById('quest-chronicle-body');
     
@@ -420,7 +494,6 @@ window.renderAllEngineSectors = function() {
             tr.style.borderBottom = "1px solid var(--border)";
 
             if(l.category.includes('📬 Wallet')) {
-                // Route directly to Wallet Table
                 tr.innerHTML = `
                     <td style="padding:8px;">${l.date}</td>
                     <td style="padding:8px; color:var(--purple); font-weight:bold;">${l.category.replace('📬 Wallet ', '')}</td>
@@ -429,7 +502,6 @@ window.renderAllEngineSectors = function() {
                 `;
                 if(walletBody) walletBody.appendChild(tr);
             } else {
-                // Route directly to Quest Chronicle Table
                 tr.innerHTML = `
                     <td style="padding:8px;">${l.date}</td>
                     <td style="padding:8px; color:var(--gold); font-weight:bold;">${l.category}</td>
@@ -501,7 +573,6 @@ function updateFinancialSummary() {
         window.state.envelopes.forEach(e => allocated += parseFloat(e.balance || 0)); 
     } 
     
-    // Scan journal logs to calculate an absolute spent tally
     let totalSpentCalculated = 0;
     if(window.state.journalLog) {
         window.state.journalLog.forEach(l => {
@@ -520,176 +591,58 @@ function updateFinancialSummary() {
 }
 
 // =========================================================================
-// 🎒 UPDATED PROFILE BLUEPRINT SCHEMA
-// =========================================================================
-function createBlankProfile(name) {
-    return {
-        playerName: name,
-        level: 1,
-        xp: 0,
-        gold: 0,
-        attributes: {
-            strength: 1,
-            dexterity: 1,
-            intelligence: 1,
-            endurance: 1,
-            focus: 1
-        },
-        walletSummary: {
-            totalBalance: 0,
-            availableSpending: 0
-        }
-    };
-}
-
-// Master Household Keyword Dictionary for Auto-Categorization
-const SMART_STAT_DICTIONARY = {
-    strength: ['lift', 'weights', 'bench', 'press', 'squat', 'gym', 'pushup', 'pullup', 'workout'],
-    dexterity: ['carve', 'whittle', 'draw', 'paint', 'lego', 'build', 'guitar', 'piano', 'art', 'craft', 'color'],
-    intelligence: ['code', 'study', 'read', 'math', 'homework', 'science', 'learn', 'book'],
-    endurance: ['run', 'jog', 'bike', 'swim', 'cardio', 'soccer', 'basketball', 'tag', 'skate', 'hike', 'walk']
-};
-
-// =========================================================================
-// 🚀 ATTRIBUTE GRINDING LOGIC WITH SMART PARSING
-// =========================================================================
-window.executeHobbyGrind = async function() {
-    const activityInput = document.getElementById('hobby-grind-input');
-    if (!activityInput || !activityInput.value.trim()) return alert("What activity did you complete?");
-    
-    const activityName = activityInput.value.trim().toLowerCase();
-
-    // 🧠 SMART PARSER: Scan the words typed to auto-detect the stat bucket
-    let detectedAttribute = 'focus'; // Default fallback stat
-    for (const [attribute, keywords] of Object.entries(SMART_STAT_DICTIONARY)) {
-        if (keywords.some(keyword => activityName.includes(keyword))) {
-            detectedAttribute = attribute;
-            break;
-        }
-    }
-
-    const householdRef = doc(db, 'households', 'OYfoVvk62io4l9lZxm0g');
-    const profileRef = doc(householdRef, 'profiles', activePlayerId);
-    const profileSnap = await getDoc(profileRef);
-    
-    if (!profileSnap.exists()) return;
-    const data = profileSnap.data();
-    
-    const currentAttributes = data.attributes || { strength: 1, dexterity: 1, intelligence: 1, focus: 1, endurance: 1 };
-    const oldXp = data.xp || 0;
-    const xpReward = 15; 
-    const newXp = oldXp + xpReward;
-    
-    const oldLevel = Math.floor(oldXp / 100) + 1;
-    const newLevel = Math.floor(newXp / 100) + 1;
-
-    currentAttributes[detectedAttribute] = (currentAttributes[detectedAttribute] || 1) + 1;
-
-    await updateDoc(profileRef, {
-        xp: newXp,
-        level: newLevel,
-        attributes: currentAttributes
-    });
-
-    alert(`Activity Logged! System detected [${detectedAttribute.toUpperCase()}] for "${activityInput.value}". +${xpReward} XP!`);
-    activityInput.value = '';
-
-    if (newLevel > oldLevel) {
-        const modal = document.getElementById('level-up-modal');
-        const modalText = document.getElementById('modal-level-text');
-        if (modal && modalText) {
-            modalText.innerText = `LEVEL ${newLevel}`;
-            modal.style.display = 'flex';
-        }
-    }
-};
-
-window.closeLevelUpModal = function() {
-    const modal = document.getElementById('level-up-modal');
-    if (modal) modal.style.display = 'none';
-};
-
-// =========================================================================
-// 💸 ENVELOPE-TO-ENVELOPE TRANSFER LOGIC
-// =========================================================================
-window.executeEnvelopeTransfer = async function() {
-    const fromSelect = document.getElementById('transfer-from-select');
-    const toSelect = document.getElementById('transfer-to-select');
-    const amountInput = document.getElementById('transfer-amount-input');
-    
-    if (!fromSelect || !toSelect || !amountInput) return;
-    const amount = parseFloat(amountInput.value);
-    if (isNaN(amount) || amount <= 0) return alert("Please specify a valid financial asset balance.");
-    if (fromSelect.value === toSelect.value) return alert("Source and target envelopes must be distinct.");
-
-    const householdRef = doc(db, 'households', 'OYfoVvk62io4l9lZxm0g');
-    const fromRef = doc(householdRef, 'envelopes', fromSelect.value);
-    const toRef = doc(householdRef, 'envelopes', toSelect.value);
-
-    const fromSnap = await getDoc(fromRef);
-    if (!fromSnap.exists() || fromSnap.data().balance < amount) {
-        return alert("Insufficient reserve allocation in source envelope.");
-    }
-
-    await updateDoc(fromRef, { balance: fromSnap.data().balance - amount });
-    const toSnap = await getDoc(toRef);
-    await updateDoc(toRef, { balance: (toSnap.exists() ? toSnap.data().balance : 0) + amount });
-
-    amountInput.value = '';
-    alert("Asset reallocation processed successfully!");
-};
-
-// =========================================================================
 // 📡 LIVE BACKEND FIRESTORE DATA STREAM INTEGRATION
 // =========================================================================
 function establishLiveSyncStream() {
-    const householdRef = doc(db, 'households', 'OYfoVvk62io4l9lZxm0g');
-    const profileRef = doc(householdRef, 'profiles', activePlayerId);
+    const statusEl = document.getElementById('cloud-status');
+    if (activeSubListener) activeSubListener(); 
 
-    // 1. Live Sync Profiles & Character sheet attributes
-    onSnapshot(profileRef, (docSnap) => {
-        if (!docSnap.exists()) return;
-        const profileData = docSnap.data();
-
-        // Render Character Stats Visuals dynamically
-        const attrDiv = document.getElementById('attributes-display');
-        if (attrDiv) {
-            const att = profileData.attributes || { strength: 1, dexterity: 1, intelligence: 1, focus: 1, endurance: 1 };
-            attrDiv.innerHTML = `
-                <strong>STR (Strength):</strong> 💪 ${att.strength || 1}<br>
-                <strong>DEX (Dexterity):</strong> 🎯 ${att.dexterity || 1}<br>
-                <strong>INT (Intelligence):</strong> 🧠 ${att.intelligence || 1}<br>
-                <strong>END (Endurance):</strong> 🏃‍♂️ ${att.endurance || 1}<br>
-                <strong>FOC (Focus):</strong> ⚡ ${att.focus || 1}
-            `;
+    const cached = localStorage.getItem(`masterflow_cache_${activePlayerId}`);
+    if(cached) {
+        try {
+            window.state = { ...createBlankProfile(), ...JSON.parse(cached) };
+            window.renderAllEngineSectors();
+            if(statusEl) statusEl.textContent = "✅ Running on Cache";
+        } catch(e) { 
+            console.error("Cache read fail:", e); 
         }
-        
-        // Let any existing rendering processes for player summary run safely below
-        if (typeof renderPlayerSummary === 'function') {
-            renderPlayerSummary(profileData);
-        }
-    });
+    }
 
-    // 2. Live Sync Envelopes dropdown selectors
-    onSnapshot(collection(householdRef, 'envelopes'), (querySnapshot) => {
-        const envelopes = [];
-        querySnapshot.forEach((doc) => {
-            envelopes.push({ id: doc.id, ...doc.data() });
-        });
+    try {
+        activeSubListener = onSnapshot(
+            doc(db, "households", "OYfoVvk62io4l9lZxm0g", "profiles", activePlayerId), 
+            (docSnap) => {
+                if (docSnap.exists()) {
+                    window.state = { ...createBlankProfile(), ...docSnap.data() };
+                    localStorage.setItem(`masterflow_cache_${activePlayerId}`, JSON.stringify(window.state));
+                }
+                
+                // Force attributes view parsing with safe fallback baseline defaults
+                const attrDiv = document.getElementById('attributes-display');
+                if (attrDiv) {
+                    const att = window.state.attributes || { strength: 1, dexterity: 1, intelligence: 1, focus: 1, endurance: 1 };
+                    attrDiv.innerHTML = `
+                        <strong>STR (Strength):</strong> 💪 ${att.strength || 1}<br>
+                        <strong>DEX (Dexterity):</strong> 🎯 ${att.dexterity || 1}<br>
+                        <strong>INT (Intelligence):</strong> 🧠 ${att.intelligence || 1}<br>
+                        <strong>END (Endurance):</strong> 🏃‍♂️ ${att.endurance || 1}<br>
+                        <strong>FOC (Focus):</strong> ⚡ ${att.focus || 1}
+                    `;
+                }
 
-        const fromSel = document.getElementById('transfer-from-select');
-        const toSel = document.getElementById('transfer-to-select');
-        if (fromSel && toSel) {
-            const optionsHtml = envelopes.map(e => `<option value="${e.id}">${e.name} ($${parseFloat(e.balance).toFixed(2)})</option>`).join('');
-            fromSel.innerHTML = optionsHtml;
-            toSel.innerHTML = optionsHtml;
-        }
-    });
+                window.renderAllEngineSectors();
+                if(statusEl) statusEl.textContent = "🟢 Live Cloud Sync Active";
+            }, 
+            (streamError) => {
+                console.warn("Stream blocked or offline:", streamError);
+                if(statusEl) statusEl.textContent = "⚠️ Stream Error (Offline)";
+            }
+        );
+    } catch(e) {
+        console.error("Failed to establish snapshot pipeline:", e);
+    }
 }
 
-// =========================================================================
-// 🚀 INITIALIZATION ENGINE ON REBOOT
-// =========================================================================
 function initializeAppOnLoad() {
     const globalSelect = document.getElementById('global-player-select');
     if (globalSelect) {
