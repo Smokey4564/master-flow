@@ -10,7 +10,7 @@ Create dated quests with categories, notes, times, and difficulty tiers. Hold a 
 
 ### Wallet
 
-Create budget envelopes, track their balances, record spending, and review transaction history for each envelope.
+Create budget envelopes, track their balances, record spending, and review transaction history for each envelope. (new 6/13) ability to transfer money between envelopes.
 
 ### Summary
 
@@ -45,7 +45,7 @@ Set a custom hero name or reset the current player profile.
 - Tier-styled quest cards with hold progress and completion animation
 - Overdue quest highlighting and warning badges
 - Correct allocated-budget and total-spent summary values
-- User-created budget envelopes
+- User-created budget envelopes (completed, double check on pages!)
 - Saved and profile-aware custom hero names
 - Plain-English JavaScript block comments and labeled HTML sections
 
@@ -66,3 +66,5 @@ npx serve
 5. Added overdue quest date detection, card styling, and warning badges.
 6. Added plain-English comments to JavaScript behavior blocks and HTML labels for major sections and forms.
 7. Added this README with app usage and implementation details.
+8. Added a player attributes with preset keyword dictonary to allocate to attribute (new 6/13)
+9. Added new version of rules to firebase (ask for more details 6/13)
