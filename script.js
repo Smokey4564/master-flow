@@ -519,19 +519,185 @@ function updateFinancialSummary() {
     if(spentEl) spentEl.textContent = `$${totalSpentCalculated.toFixed(2)}`;
 }
 
-// 🚀 INITIALIZATION ENGINE
+// =========================================================================
+// 🎒 UPDATED PROFILE BLUEPRINT SCHEMA
+// =========================================================================
+function createBlankProfile(name) {
+    return {
+        playerName: name,
+        level: 1,
+        xp: 0,
+        gold: 0,
+        attributes: {
+            strength: 1,
+            dexterity: 1,
+            intelligence: 1,
+            endurance: 1,
+            focus: 1
+        },
+        walletSummary: {
+            totalBalance: 0,
+            availableSpending: 0
+        }
+    };
+}
+
+// Master Household Keyword Dictionary for Auto-Categorization
+const SMART_STAT_DICTIONARY = {
+    strength: ['lift', 'weights', 'bench', 'press', 'squat', 'gym', 'pushup', 'pullup', 'workout'],
+    dexterity: ['carve', 'whittle', 'draw', 'paint', 'lego', 'build', 'guitar', 'piano', 'art', 'craft', 'color'],
+    intelligence: ['code', 'study', 'read', 'math', 'homework', 'science', 'learn', 'book'],
+    endurance: ['run', 'jog', 'bike', 'swim', 'cardio', 'soccer', 'basketball', 'tag', 'skate', 'hike', 'walk']
+};
+
+// =========================================================================
+// 🚀 ATTRIBUTE GRINDING LOGIC WITH SMART PARSING
+// =========================================================================
+window.executeHobbyGrind = async function() {
+    const activityInput = document.getElementById('hobby-grind-input');
+    if (!activityInput || !activityInput.value.trim()) return alert("What activity did you complete?");
+    
+    const activityName = activityInput.value.trim().toLowerCase();
+
+    // 🧠 SMART PARSER: Scan the words typed to auto-detect the stat bucket
+    let detectedAttribute = 'focus'; // Default fallback stat
+    for (const [attribute, keywords] of Object.entries(SMART_STAT_DICTIONARY)) {
+        if (keywords.some(keyword => activityName.includes(keyword))) {
+            detectedAttribute = attribute;
+            break;
+        }
+    }
+
+    const householdRef = doc(db, 'households', 'OYfoVvk62io4l9lZxm0g');
+    const profileRef = doc(householdRef, 'profiles', activePlayerId);
+    const profileSnap = await getDoc(profileRef);
+    
+    if (!profileSnap.exists()) return;
+    const data = profileSnap.data();
+    
+    const currentAttributes = data.attributes || { strength: 1, dexterity: 1, intelligence: 1, focus: 1, endurance: 1 };
+    const oldXp = data.xp || 0;
+    const xpReward = 15; 
+    const newXp = oldXp + xpReward;
+    
+    const oldLevel = Math.floor(oldXp / 100) + 1;
+    const newLevel = Math.floor(newXp / 100) + 1;
+
+    currentAttributes[detectedAttribute] = (currentAttributes[detectedAttribute] || 1) + 1;
+
+    await updateDoc(profileRef, {
+        xp: newXp,
+        level: newLevel,
+        attributes: currentAttributes
+    });
+
+    alert(`Activity Logged! System detected [${detectedAttribute.toUpperCase()}] for "${activityInput.value}". +${xpReward} XP!`);
+    activityInput.value = '';
+
+    if (newLevel > oldLevel) {
+        const modal = document.getElementById('level-up-modal');
+        const modalText = document.getElementById('modal-level-text');
+        if (modal && modalText) {
+            modalText.innerText = `LEVEL ${newLevel}`;
+            modal.style.display = 'flex';
+        }
+    }
+};
+
+window.closeLevelUpModal = function() {
+    const modal = document.getElementById('level-up-modal');
+    if (modal) modal.style.display = 'none';
+};
+
+// =========================================================================
+// 💸 ENVELOPE-TO-ENVELOPE TRANSFER LOGIC
+// =========================================================================
+window.executeEnvelopeTransfer = async function() {
+    const fromSelect = document.getElementById('transfer-from-select');
+    const toSelect = document.getElementById('transfer-to-select');
+    const amountInput = document.getElementById('transfer-amount-input');
+    
+    if (!fromSelect || !toSelect || !amountInput) return;
+    const amount = parseFloat(amountInput.value);
+    if (isNaN(amount) || amount <= 0) return alert("Please specify a valid financial asset balance.");
+    if (fromSelect.value === toSelect.value) return alert("Source and target envelopes must be distinct.");
+
+    const householdRef = doc(db, 'households', 'OYfoVvk62io4l9lZxm0g');
+    const fromRef = doc(householdRef, 'envelopes', fromSelect.value);
+    const toRef = doc(householdRef, 'envelopes', toSelect.value);
+
+    const fromSnap = await getDoc(fromRef);
+    if (!fromSnap.exists() || fromSnap.data().balance < amount) {
+        return alert("Insufficient reserve allocation in source envelope.");
+    }
+
+    await updateDoc(fromRef, { balance: fromSnap.data().balance - amount });
+    const toSnap = await getDoc(toRef);
+    await updateDoc(toRef, { balance: (toSnap.exists() ? toSnap.data().balance : 0) + amount });
+
+    amountInput.value = '';
+    alert("Asset reallocation processed successfully!");
+};
+
+// =========================================================================
+// 📡 LIVE BACKEND FIRESTORE DATA STREAM INTEGRATION
+// =========================================================================
+function establishLiveSyncStream() {
+    const householdRef = doc(db, 'households', 'OYfoVvk62io4l9lZxm0g');
+    const profileRef = doc(householdRef, 'profiles', activePlayerId);
+
+    // 1. Live Sync Profiles & Character sheet attributes
+    onSnapshot(profileRef, (docSnap) => {
+        if (!docSnap.exists()) return;
+        const profileData = docSnap.data();
+
+        // Render Character Stats Visuals dynamically
+        const attrDiv = document.getElementById('attributes-display');
+        if (attrDiv) {
+            const att = profileData.attributes || { strength: 1, dexterity: 1, intelligence: 1, focus: 1, endurance: 1 };
+            attrDiv.innerHTML = `
+                <strong>STR (Strength):</strong> 💪 ${att.strength || 1}<br>
+                <strong>DEX (Dexterity):</strong> 🎯 ${att.dexterity || 1}<br>
+                <strong>INT (Intelligence):</strong> 🧠 ${att.intelligence || 1}<br>
+                <strong>END (Endurance):</strong> 🏃‍♂️ ${att.endurance || 1}<br>
+                <strong>FOC (Focus):</strong> ⚡ ${att.focus || 1}
+            `;
+        }
+        
+        // Let any existing rendering processes for player summary run safely below
+        if (typeof renderPlayerSummary === 'function') {
+            renderPlayerSummary(profileData);
+        }
+    });
+
+    // 2. Live Sync Envelopes dropdown selectors
+    onSnapshot(collection(householdRef, 'envelopes'), (querySnapshot) => {
+        const envelopes = [];
+        querySnapshot.forEach((doc) => {
+            envelopes.push({ id: doc.id, ...doc.data() });
+        });
+
+        const fromSel = document.getElementById('transfer-from-select');
+        const toSel = document.getElementById('transfer-to-select');
+        if (fromSel && toSel) {
+            const optionsHtml = envelopes.map(e => `<option value="${e.id}">${e.name} ($${parseFloat(e.balance).toFixed(2)})</option>`).join('');
+            fromSel.innerHTML = optionsHtml;
+            toSel.innerHTML = optionsHtml;
+        }
+    });
+}
+
+// =========================================================================
+// 🚀 INITIALIZATION ENGINE ON REBOOT
+// =========================================================================
 function initializeAppOnLoad() {
-    // 1. Sync the HTML dropdown selector with the actual active player ID on boot
     const globalSelect = document.getElementById('global-player-select');
     if (globalSelect) {
         globalSelect.value = activePlayerId;
     }
-
-    // 2. Fire up the live database pipeline stream
     establishLiveSyncStream();
 }
 
-// Run the initialization sequence as soon as the page is fully loaded
 if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', initializeAppOnLoad);
 } else {
