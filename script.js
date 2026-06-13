@@ -519,4 +519,21 @@ function updateFinancialSummary() {
     if(spentEl) spentEl.textContent = `$${totalSpentCalculated.toFixed(2)}`;
 }
 
-establishLiveSyncStream();
+// 🚀 INITIALIZATION ENGINE
+function initializeAppOnLoad() {
+    // 1. Sync the HTML dropdown selector with the actual active player ID on boot
+    const globalSelect = document.getElementById('global-player-select');
+    if (globalSelect) {
+        globalSelect.value = activePlayerId;
+    }
+
+    // 2. Fire up the live database pipeline stream
+    establishLiveSyncStream();
+}
+
+// Run the initialization sequence as soon as the page is fully loaded
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initializeAppOnLoad);
+} else {
+    initializeAppOnLoad();
+}
