@@ -1,5 +1,5 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
-import { getFirestore, doc, setDoc, onSnapshot, updateDoc, getDoc, collection } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+import { getFirestore, doc, setDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 
 const firebaseConfig = {
   apiKey: "AIzaSyDD4FGcNxHJT7wDh3hPMqudUYzEmDz8lbw",
@@ -14,7 +14,6 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 
-// PROFILE BLUEPRINT SCHEMA WITH EXTENDED ATTRIBUTES MAP
 const createBlankProfile = () => ({ 
     heroName: '', 
     activeIdentity: 'masc', 
@@ -47,7 +46,6 @@ const dynamicClassMatrix = {
     rogue: { hp: 90, mp: 50, atk: 16, def: 9, title: "⚡ Shadow Assassin" }
 };
 
-// MASTER HOUSEHOLD KEYWORD DICTIONARY FOR ACTIVITY DECODER
 const SMART_STAT_DICTIONARY = {
     strength: ['lift', 'weights', 'bench', 'press', 'squat', 'gym', 'pushup', 'pullup', 'workout'],
     dexterity: ['carve', 'whittle', 'draw', 'paint', 'lego', 'build', 'guitar', 'piano', 'art', 'craft', 'color'],
@@ -69,21 +67,16 @@ window.saveState = async function() {
         await setDoc(doc(db, "households", "OYfoVvk62io4l9lZxm0g", "profiles", activePlayerId), window.state);
         if(statusEl) statusEl.textContent = "✅ Profile Saved";
     } catch (err) {
-        console.warn("Network busy, state safely backed up locally:", err);
+        console.warn("Network busy, cache safe locally:", err);
         if(statusEl) statusEl.textContent = "⚠️ Saved Locally (Offline)";
     }
 };
 
-// =========================================================================
-// 🚀 SMART HOBBY GRIND PARSER ENGINE
-// =========================================================================
 window.executeHobbyGrind = async function() {
     const activityInput = document.getElementById('hobby-grind-input');
     if (!activityInput || !activityInput.value.trim()) return alert("What activity did you complete?");
     
     const activityName = activityInput.value.trim().toLowerCase();
-
-    // Scan words against dictionary lists to auto-detect appropriate bucket
     let detectedAttribute = 'focus'; 
     for (const [attribute, keywords] of Object.entries(SMART_STAT_DICTIONARY)) {
         if (keywords.some(keyword => activityName.includes(keyword))) {
@@ -92,33 +85,22 @@ window.executeHobbyGrind = async function() {
         }
     }
 
-    const householdRef = doc(db, 'households', 'OYfoVvk62io4l9lZxm0g');
-    const profileRef = doc(householdRef, 'profiles', activePlayerId);
-    const profileSnap = await getDoc(profileRef);
-    
-    let currentAttributes = { strength: 1, dexterity: 1, intelligence: 1, focus: 1, endurance: 1 };
-    let oldXp = window.state.xp || 0;
-
-    if (profileSnap.exists()) {
-        const d = profileSnap.data();
-        if (d.attributes) currentAttributes = d.attributes;
-        if (d.xp !== undefined) oldXp = d.xp;
+    if (!window.state.attributes) {
+        window.state.attributes = { strength: 1, dexterity: 1, intelligence: 1, focus: 1, endurance: 1 };
     }
     
+    const oldXp = window.state.xp || 0;
     const xpReward = 15; 
     const newXp = oldXp + xpReward;
     
     const oldLevel = Math.floor(oldXp / 100) + 1;
     const newLevel = Math.floor(newXp / 100) + 1;
 
-    currentAttributes[detectedAttribute] = (currentAttributes[detectedAttribute] || 1) + 1;
-
+    window.state.attributes[detectedAttribute] = (window.state.attributes[detectedAttribute] || 1) + 1;
     window.state.xp = newXp;
-    window.state.attributes = currentAttributes;
 
-    await setDoc(profileRef, window.state, { merge: true });
-
-    alert(`Activity Logged! System detected [${detectedAttribute.toUpperCase()}] for "${activityInput.value}". +${xpReward} XP!`);
+    window.saveState();
+    alert(`Activity Logged! [${detectedAttribute.toUpperCase()}] leveled up for "${activityInput.value}". +${xpReward} XP!`);
     activityInput.value = '';
 
     if (newLevel > oldLevel) {
@@ -136,9 +118,6 @@ window.closeLevelUpModal = function() {
     if (modal) modal.style.display = 'none';
 };
 
-// =========================================================================
-// 💸 ENVELOPE-TO-ENVELOPE TRANSFER LOGIC
-// =========================================================================
 window.executeEnvelopeTransfer = async function() {
     const fromSelect = document.getElementById('transfer-from-select');
     const toSelect = document.getElementById('transfer-to-select');
@@ -146,10 +125,9 @@ window.executeEnvelopeTransfer = async function() {
     
     if (!fromSelect || !toSelect || !amountInput) return;
     const amount = parseFloat(amountInput.value);
-    if (isNaN(amount) || amount <= 0) return alert("Please specify a valid financial asset balance.");
-    if (fromSelect.value === toSelect.value) return alert("Source and target envelopes must be distinct.");
+    if (isNaN(amount) || amount <= 0) return alert("Please specify a valid reallocation balance.");
+    if (fromSelect.value === toSelect.value) return alert("Source and destination envelopes must be different.");
 
-    // Parse array tracking indices safely
     const fromIdx = parseInt(fromSelect.value);
     const toIdx = parseInt(toSelect.value);
 
@@ -158,7 +136,7 @@ window.executeEnvelopeTransfer = async function() {
         const destEnv = window.state.envelopes[toIdx];
 
         if (parseFloat(srcEnv.balance) < amount) {
-            return alert("Insufficient reserve allocation in source envelope.");
+            return alert("Insufficient reserve balance in your source envelope.");
         }
 
         srcEnv.balance = parseFloat(srcEnv.balance) - amount;
@@ -168,13 +146,13 @@ window.executeEnvelopeTransfer = async function() {
         window.state.journalLog.unshift({
             date: new Date().toLocaleDateString(),
             category: `📬 Wallet (${srcEnv.name} ➡️ ${destEnv.name})`,
-            name: `Internal Balance Shifting Allocation`,
+            name: `Internal Asset Reallocation Shift`,
             notes: `$${amount.toFixed(2)}`
         });
 
         amountInput.value = '';
         window.saveState();
-        alert("Asset reallocation processed successfully!");
+        alert("Assets shifted successfully!");
     }
 };
 
@@ -248,7 +226,6 @@ document.addEventListener('DOMContentLoaded', () => {
             
             if (!isNaN(idx) && window.state.envelopes && window.state.envelopes[idx]) {
                 const env = window.state.envelopes[idx];
-                
                 if(!window.state.journalLog) window.state.journalLog = [];
                 
                 if (currentWalletMode === 'spend') {
@@ -268,7 +245,6 @@ document.addEventListener('DOMContentLoaded', () => {
                         notes: `+$${amount.toFixed(2)}`
                     });
                 }
-
                 this.reset(); 
                 window.saveState(); 
             }
@@ -386,7 +362,6 @@ window.renderAllEngineSectors = function() {
     const topWalletEl = document.getElementById('top-wallet'); if (topWalletEl) topWalletEl.textContent = `💰 $${walletTotal.toFixed(2)}`;
     const topGoldEl = document.getElementById('top-gold'); if (topGoldEl) topGoldEl.textContent = `🪙 ${window.state.gold || 0} Gold`;
 
-    // Render Dropdowns for transfers
     const fromSel = document.getElementById('transfer-from-select');
     const toSel = document.getElementById('transfer-to-select');
     const transEnvSel = document.getElementById('trans-envelope');
@@ -398,6 +373,18 @@ window.renderAllEngineSectors = function() {
     if(fromSel) fromSel.innerHTML = dropdownHtml;
     if(toSel) toSel.innerHTML = dropdownHtml;
     if(transEnvSel) transEnvSel.innerHTML = dropdownHtml;
+
+    const attrDiv = document.getElementById('attributes-display');
+    if (attrDiv) {
+        const att = window.state.attributes || { strength: 1, dexterity: 1, intelligence: 1, focus: 1, endurance: 1 };
+        attrDiv.innerHTML = `
+            <strong>STR (Strength):</strong> 💪 ${att.strength || 1}<br>
+            <strong>DEX (Dexterity):</strong> 🎯 ${att.dexterity || 1}<br>
+            <strong>INT (Intelligence):</strong> 🧠 ${att.intelligence || 1}<br>
+            <strong>END (Endurance):</strong> 🏃‍♂️ ${att.endurance || 1}<br>
+            <strong>FOC (Focus):</strong> ⚡ ${att.focus || 1}
+        `;
+    }
 
     const envStack = document.getElementById('envelopes-stack');
     if(envStack) {
@@ -413,7 +400,7 @@ window.renderAllEngineSectors = function() {
                     </div>
                 `).join('');
                 if (envelopeLogs.length === 0) {
-                    historyHtml = `<p style="margin:0; color:var(--text-dim); font-style:italic;">No transactions logged yet.</p>`;
+                    historyHtml = `<p style="margin:0; color:var(--text-dim); font-style:italic;">No ledger modifications recorded.</p>`;
                 }
 
                 const div = document.createElement('div');
@@ -565,7 +552,7 @@ window.switchTab = function(tabId) {
     if(clickedBtn) clickedBtn.classList.add('active');
 };
 
-window.wipeEntireEngine = function() { if(confirm("Wipe this specific profile's records?")) { window.state = createBlankProfile(); window.saveState(); } };
+window.wipeEntireEngine = function() { if(confirm("Wipe this profile record?")) { window.state = createBlankProfile(); window.saveState(); } };
 
 function updateFinancialSummary() { 
     let allocated = 0; 
@@ -591,7 +578,7 @@ function updateFinancialSummary() {
 }
 
 // =========================================================================
-// 📡 LIVE BACKEND FIRESTORE DATA STREAM INTEGRATION
+// 📡 REAL-TIME SNAPSHOT SYNCHRONIZATION PIPELINE
 // =========================================================================
 function establishLiveSyncStream() {
     const statusEl = document.getElementById('cloud-status');
@@ -616,20 +603,6 @@ function establishLiveSyncStream() {
                     window.state = { ...createBlankProfile(), ...docSnap.data() };
                     localStorage.setItem(`masterflow_cache_${activePlayerId}`, JSON.stringify(window.state));
                 }
-                
-                // Force attributes view parsing with safe fallback baseline defaults
-                const attrDiv = document.getElementById('attributes-display');
-                if (attrDiv) {
-                    const att = window.state.attributes || { strength: 1, dexterity: 1, intelligence: 1, focus: 1, endurance: 1 };
-                    attrDiv.innerHTML = `
-                        <strong>STR (Strength):</strong> 💪 ${att.strength || 1}<br>
-                        <strong>DEX (Dexterity):</strong> 🎯 ${att.dexterity || 1}<br>
-                        <strong>INT (Intelligence):</strong> 🧠 ${att.intelligence || 1}<br>
-                        <strong>END (Endurance):</strong> 🏃‍♂️ ${att.endurance || 1}<br>
-                        <strong>FOC (Focus):</strong> ⚡ ${att.focus || 1}
-                    `;
-                }
-
                 window.renderAllEngineSectors();
                 if(statusEl) statusEl.textContent = "🟢 Live Cloud Sync Active";
             }, 
