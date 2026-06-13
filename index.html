@@ -15,6 +15,7 @@
             --success: #22c55e;
             --danger: #ef4444;
             --navy: #181825;
+            --gold: #ffd700;
         }
         body {
             background-color: #09090b;
@@ -134,12 +135,40 @@
             font-weight: bold;
             margin-left: 6px;
         }
+        
+        /* Interactive Toggle Styles */
+        .toggle-container {
+            display: flex;
+            background: #27272a;
+            border-radius: 6px;
+            padding: 4px;
+            margin-bottom: 12px;
+            border: 1px solid var(--border);
+        }
+        .toggle-option {
+            flex: 1;
+            text-align: center;
+            padding: 8px;
+            font-size: 0.85rem;
+            font-weight: bold;
+            cursor: pointer;
+            border-radius: 4px;
+            color: var(--text-dim);
+            transition: all 0.2s ease;
+        }
+        .toggle-option.active.spend {
+            background: var(--danger);
+            color: white;
+        }
+        .toggle-option.active.deposit {
+            background: var(--success);
+            color: white;
+        }
     </style>
 </head>
 <body>
 
 <div class="container">
-    <!-- Header -->
     <header>
         <div>
             <h1 style="margin:0; font-size: 1.5rem;">Master Flow <span style="font-size:0.8rem; color:var(--purple);">v4.3.2</span></h1>
@@ -152,7 +181,6 @@
         </div>
     </header>
 
-    <!-- Navigation -->
     <div class="nav-bar" style="margin-bottom: 15px; display:flex; justify-content:space-around; background:var(--card-bg); padding:10px; border-radius:8px; border:1px solid var(--border);">
         <button class="tab-btn active" onclick="window.switchTab('quests')">⚔️ Quests</button>
         <button class="tab-btn" onclick="window.switchTab('wallet')">📬 Wallet</button>
@@ -160,7 +188,6 @@
         <button class="tab-btn" onclick="window.switchTab('manage')">⚙️ Settings</button>
     </div>
 
-    <!-- Account Bar -->
     <div class="account-bar-panel" style="background:var(--card-bg); padding:12px; border-radius:8px; margin-bottom:15px; border:1px solid var(--border);">
         <label style="margin:0; font-size:0.75rem; text-transform:uppercase; color:var(--text-dim); font-weight:bold;">Active Hero Identity Link</label>
         <div style="display: flex; gap: 8px; margin-top: 4px;">
@@ -171,7 +198,6 @@
         </div>
     </div>
 
-    <!-- Quests Tab -->
     <div id="quests" class="page active">
         <div class="panel" id="character-chart-panel">
             <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
@@ -203,7 +229,6 @@
 
         <div class="panel">
             <h2>⚔️ Post a Guild Notice (New Quest)</h2>
-            <!-- Quest Form -->
             <form id="quest-form">
                 <input type="text" id="quest-name" placeholder="Quest Objective Name..." required style="width:100%; padding:10px; margin-bottom:10px; background:#27272a; color:white; border:1px solid var(--border); border-radius:6px; box-sizing:border-box;">
                 <div style="display:flex; gap:10px; margin-bottom:10px;">
@@ -240,25 +265,25 @@
         <div id="quests-board" class="cards-stack"></div>
     </div>
 
-    <!-- Wallet Tab -->
     <div id="wallet" class="page">
         <div class="panel">
-            <h2>📬 Quick Spend Log</h2>
-            <p style="font-size: 0.8rem; color: var(--text-dim); margin-top: -8px; margin-bottom: 12px; line-height: 1.3;">
-                Instantly record your spending. Selecting an envelope and entering an amount will deduct it from that balance and log it straight to your dynamic history ledger.
-            </p>
-            <!-- Transaction Form -->
+            <h2>📬 Budget Ledger Action</h2>
+            
+            <!-- Dynamic Mode Toggle Switch -->
+            <div class="toggle-container">
+                <div id="toggle-spend" class="toggle-option active spend" onclick="window.setWalletMode('spend')">💸 Process Spend</div>
+                <div id="toggle-deposit" class="toggle-option deposit" onclick="window.setWalletMode('deposit')">💰 Add Funds</div>
+            </div>
+
             <form id="trans-form">
                 <select id="trans-envelope" required style="width:100%; padding:10px; margin-bottom:10px; background:#27272a; color:white; border:1px solid var(--border); border-radius:6px;"></select>
-                
-                <input type="text" id="trans-memo" placeholder="What did you buy? (e.g., Red Bull, Groceries)..." required style="width:100%; padding:10px; margin-bottom:10px; background:#27272a; color:white; border:1px solid var(--border); border-radius:6px; box-sizing:border-box;">
-                
+                <input type="text" id="trans-memo" placeholder="Memo Description Details..." required style="width:100%; padding:10px; margin-bottom:10px; background:#27272a; color:white; border:1px solid var(--border); border-radius:6px; box-sizing:border-box;">
                 <input type="number" id="trans-amount" step="0.01" placeholder="Amount ($0.00)" required style="width:100%; padding:10px; margin-bottom:10px; background:#27272a; color:white; border:1px solid var(--border); border-radius:6px; box-sizing:border-box;">
-                
-                <button type="submit" class="btn-submit" style="width:100%; background:var(--purple); color:white; border:none; padding:12px; border-radius:6px; font-weight:bold; cursor:pointer;">Process Deduction</button>
+                <button id="trans-submit-btn" type="submit" class="btn-submit" style="width:100%; background:var(--danger); color:white; border:none; padding:12px; border-radius:6px; font-weight:bold; cursor:pointer;">Process Deduction</button>
             </form>
         </div>
-        <!-- Envelope Form -->
+
+        <!-- Create Budget Envelope Form -->
         <div class="panel">
             <h2>Create Budget Envelope</h2>
             <div style="display:flex; flex-direction:column; gap:10px;">
@@ -270,50 +295,65 @@
         <div id="envelopes-stack" class="cards-stack"></div>
     </div>
 
-    <!-- Summary Tab -->
     <div id="summary" class="page">
         <div class="panel" style="width:100%; box-sizing:border-box;">
             <h2>Financial Health Summary</h2>
             <div class="summary-grid" style="display:grid; grid-template-columns: 1fr 1fr; gap:12px; margin-bottom:15px;">
                 <div class="summary-box" style="background:var(--navy); padding:16px; border-radius:8px; text-align:center; border:1px solid var(--border);">
-                    <h4 style="margin:0; font-size:0.8rem; color:var(--text-dim);">Total Budget Allocated</h4>
-                    <p id="sum-allocated" style="margin:8px 0 0 0; font-size:1.3rem; font-weight:bold;">$0.00</p>
+                    <h4 style="margin:0; font-size:0.8rem; color:var(--text-dim);">Total Budget Capital</h4>
+                    <p id="sum-allocated" style="margin:8px 0 0 0; font-size:1.3rem; font-weight:bold; color:var(--purple);">$0.00</p>
                 </div>
                 <div class="summary-box" style="background:var(--navy); padding:16px; border-radius:8px; text-align:center; border:1px solid var(--border);">
-                    <h4 style="margin:0; font-size:0.8rem; color:var(--text-dim);">Total Spent</h4>
-                    <p id="sum-remaining" style="margin:8px 0 0 0; font-size:1.3rem; font-weight:bold; color:var(--success);">$0.00</p>
+                    <h4 style="margin:0; font-size:0.8rem; color:var(--text-dim);">Historical Total Spent</h4>
+                    <p id="sum-spent" style="margin:8px 0 0 0; font-size:1.3rem; font-weight:bold; color:var(--danger);">$0.00</p>
                 </div>
             </div>
         </div>
 
+        <!-- REORGANIZED SECTION 1: WALLET TRANSACTIONS ONLY -->
         <div class="panel" style="width:100%; box-sizing:border-box;">
-            <h2>📜 Historical Ledger Log</h2>
+            <h2>💸 Wallet Transaction Ledger</h2>
             <div style="overflow-x:auto;">
                 <table style="width:100%; text-align:left; border-collapse:collapse; font-size:0.9rem;">
                     <thead>
                         <tr style="border-bottom:1px solid var(--border); color:var(--text-dim);">
                             <th style="padding:8px;">Date</th>
-                            <th style="padding:8px;">Category</th>
-                            <th style="padding:8px;">Objective</th>
-                            <th style="padding:8px;">Notes</th>
+                            <th style="padding:8px;">Envelope Location</th>
+                            <th style="padding:8px;">Memo Item</th>
+                            <th style="padding:8px;">Flow Delta</th>
                         </tr>
                     </thead>
-                    <tbody id="journal-table-body">
-                    </tbody>
+                    <tbody id="wallet-ledger-body"></tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- REORGANIZED SECTION 2: QUEST COMPLETIONS ONLY -->
+        <div class="panel" style="width:100%; box-sizing:border-box;">
+            <h2>⚔️ Quest Victory Chronicle</h2>
+            <div style="overflow-x:auto;">
+                <table style="width:100%; text-align:left; border-collapse:collapse; font-size:0.9rem;">
+                    <thead>
+                        <tr style="border-bottom:1px solid var(--border); color:var(--text-dim);">
+                            <th style="padding:8px;">Date</th>
+                            <th style="padding:8px;">Guild Guild Guild Notice</th>
+                            <th style="padding:8px;">Quest Completed</th>
+                            <th style="padding:8px;">Bounty Rewards</th>
+                        </tr>
+                    </thead>
+                    <tbody id="quest-chronicle-body"></tbody>
                 </table>
             </div>
         </div>
     </div>
 
-    <!-- Settings Tab -->
     <div id="manage" class="page">
         <div class="panel">
             <h2>Global Controls</h2>
-            <!-- Hero Name Form -->
             <div style="margin-bottom:15px;">
-                <label for="hero-name-input" style="display:block; margin-bottom:6px; font-size:0.8rem; color:var(--text-dim); font-weight:bold;">Hero Name</label>
-                <input type="text" id="hero-name-input" placeholder="Enter your hero name" style="width:100%; padding:10px; margin-bottom:10px; background:#27272a; color:white; border:1px solid var(--border); border-radius:6px; box-sizing:border-box;">
-                <button id="btn-save-hero-name" type="button" class="btn-submit" style="width:100%; background:var(--purple); color:white; border:none; padding:12px; border-radius:6px; font-weight:bold; cursor:pointer;">Save</button>
+                <label for="hero-name-input" style="display:block; margin-bottom:6px; font-size:0.8rem; color:var(--text-dim); font-weight:bold;">Hero Name Configuration</label>
+                <input type="text" id="hero-name-input" placeholder="Set identity nickname..." style="width:100%; padding:10px; margin-bottom:10px; background:#27272a; color:white; border:1px solid var(--border); border-radius:6px; box-sizing:border-box;">
+                <button id="btn-save-hero-name" type="button" class="btn-submit" style="width:100%; background:var(--purple); color:white; border:none; padding:12px; border-radius:6px; font-weight:bold; cursor:pointer;">Update Identity</button>
             </div>
             <button class="btn-submit" style="background:var(--danger); width:100%; color:white; border:none; padding:12px; border-radius:6px; font-weight:bold; cursor:pointer;" onclick="window.wipeEntireEngine()">Wipe Current Profile (Reset)</button>
         </div>
