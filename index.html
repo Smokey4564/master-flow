@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Master Flow v4.3.2</title>
-<link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="style.css">
 </head>
 <body>
 
@@ -38,7 +38,6 @@
         </div>
     </div>
 
-    <!-- ⚔️ QUESTS PAGE CONTAINER -->
     <div id="quests" class="page active">
         <div class="panel" id="character-chart-panel">
             <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
@@ -68,14 +67,13 @@
             </div>
         </div>
 
-        <!-- RPG Attributes Grid System Section -->
         <div class="panel" style="border: 1px solid var(--border); padding: 15px; border-radius: 8px; background: var(--card-bg);">
             <h2 style="margin-top: 0; font-size: 1.15rem;">⚔️ RPG Attributes</h2>
             <div id="attributes-display" style="margin-bottom: 15px; font-family: monospace; font-size: 14px; line-height: 1.5; color: var(--text-main);"></div>
             <hr style="border: 0; border-top: 1px solid var(--border); margin: 12px 0;">
             <h3 style="margin: 0 0 4px 0; font-size: 0.95rem;">🏋️ Log Activity Grind</h3>
             <input type="text" id="hobby-grind-input" placeholder="What did you smash today?" style="width: 100%; padding: 8px; box-sizing: border-box; margin-bottom: 8px; background: #27272a; color: white; border: 1px solid var(--border); border-radius: 6px; font-size: 0.85rem;">
-            <button onclick="executeHobbyGrind()" style="width: 100%; padding: 10px; background: var(--success); color: white; border: none; border-radius: 6px; font-weight: bold; cursor: pointer; font-size: 0.85rem;">
+            <button onclick="window.executeHobbyGrind()" style="width: 100%; padding: 10px; background: var(--success); color: white; border: none; border-radius: 6px; font-weight: bold; cursor: pointer; font-size: 0.85rem;">
                 Log Grind
             </button>
         </div>
@@ -118,12 +116,9 @@
         <div id="quests-board" class="cards-stack"></div>
     </div>
 
-    <!-- 📬 WALLET PAGE CONTAINER -->
     <div id="wallet" class="page">
-        <!-- Dual Column Action Dashboard Grid -->
         <div class="wallet-grid-layout" style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 15px;">
             
-            <!-- Standard Budget Action Ledger Card -->
             <div class="panel" style="margin-bottom: 0;">
                 <h2>📬 Budget Ledger Action</h2>
                 <div class="toggle-container">
@@ -139,7 +134,6 @@
                 </form>
             </div>
 
-            <!-- 💸 Asset Reallocation Internal Envelope Shift Card -->
             <div class="panel" style="margin-bottom: 0;">
                 <h2>💸 Envelope Transfer</h2>
                 <p style="margin-top: 0; font-size: 0.8rem; color: var(--text-dim);">Move money safely between active budget allocations.</p>
@@ -153,7 +147,7 @@
                 <label style="display:block; margin-bottom: 2px; font-size: 0.75rem; font-weight: bold; color: var(--text-dim);">Amount ($):</label>
                 <input type="number" id="transfer-amount-input" step="0.01" placeholder="0.00" style="width: 100%; padding: 8px; box-sizing: border-box; margin-bottom: 10px; background: #27272a; color: white; border: 1px solid var(--border); border-radius: 6px; font-size: 0.85rem;">
                 
-                <button onclick="executeEnvelopeTransfer()" style="width: 100%; padding: 10px; background: #2196F3; color: white; border: none; border-radius: 6px; font-weight: bold; cursor: pointer; font-size: 0.85rem;">
+                <button onclick="window.executeEnvelopeTransfer()" style="width: 100%; padding: 10px; background: #2196F3; color: white; border: none; border-radius: 6px; font-weight: bold; cursor: pointer; font-size: 0.85rem;">
                     Confirm Asset Relocation
                 </button>
             </div>
@@ -170,12 +164,11 @@
         <div id="envelopes-stack" class="cards-stack"></div>
     </div>
 
-    <!-- 📊 SUMMARY PAGE CONTAINER -->
     <div id="summary" class="page">
         <div class="panel" style="width:100%; box-sizing:border-box;">
             <h2>Financial Health Summary</h2>
             <div class="summary-grid" style="display:grid; grid-template-columns: 1fr 1fr; gap:12px; margin-bottom:15px;">
-                <div class="summary-box" style="background:var(--navy); padding:16px; border-radius:8px; text-align:center; border:1px solid var(--border);">
+                <div class="summary-box" style="background:var(--navy); padding:166px; border-radius:8px; text-align:center; border:1px solid var(--border);">
                     <h4 style="margin:0; font-size:0.8rem; color:var(--text-dim);">Total Budget Capital</h4>
                     <p id="sum-allocated" style="margin:8px 0 0 0; font-size:1.3rem; font-weight:bold; color:var(--purple);">$0.00</p>
                 </div>
@@ -221,14 +214,13 @@
         </div>
     </div>
 
-    <!-- ⚙️ SETTINGS PAGE CONTAINER -->
     <div id="manage" class="page">
         <div class="panel">
             <h2>Global Controls</h2>
             <div style="margin-bottom:15px;">
                 <label for="hero-name-input" style="display:block; margin-bottom:6px; font-size:0.8rem; color:var(--text-dim); font-weight:bold;">Hero Name Configuration</label>
                 <input type="text" id="hero-name-input" placeholder="Set identity nickname..." style="width:100%; padding:10px; margin-bottom:10px; background:#27272a; color:white; border:1px solid var(--border); border-radius:6px; box-sizing:border-box;">
-                <button id="btn-save-hero-name" type="button" class="btn-submit" style="width:100%; background:var(--purple); color:white; border:none; padding:12px; border-radius:6px; font-weight:bold; cursor:pointer;">Update Identity</button>
+                <button id="btn-save-hero-name" onclick="window.updateHeroName()" type="button" class="btn-submit" style="width:100%; background:var(--purple); color:white; border:none; padding:12px; border-radius:6px; font-weight:bold; cursor:pointer;">Update Identity</button>
             </div>
             <button class="btn-submit" style="background:var(--danger); width:100%; color:white; border:none; padding:12px; border-radius:6px; font-weight:bold; cursor:pointer;" onclick="window.wipeEntireEngine()">Wipe Current Profile (Reset)</button>
         </div>
@@ -240,7 +232,7 @@
         <h1 style="color: #FFD700; font-size: 42px; margin: 0 0 10px 0;">LEVEL UP!</h1>
         <p style="font-size: 18px; margin-bottom: 20px;">Your grinding has broken the barrier.</p>
         <h2 id="modal-level-text" style="font-size: 28px; margin-bottom: 30px; color: #4CAF50;">LEVEL 2</h2>
-        <button onclick="closeLevelUpModal()" style="padding: 12px 30px; background: #FFD700; color: #000; font-weight: bold; border: none; border-radius: 4px; cursor: pointer; font-size: 16px;">
+        <button onclick="window.closeLevelUpModal()" style="padding: 12px 30px; background: #FFD700; color: #000; font-weight: bold; border: none; border-radius: 4px; cursor: pointer; font-size: 16px;">
             Claim Glory
         </button>
     </div>
