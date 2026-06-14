@@ -33,6 +33,11 @@ const CLASS_MATRIX = {
         female: { base: "⚡ Scout Rogue",     evolved: "🎭 Phantom Rogue" },
         stats:  { hp: 90, mp: 60, atk: 19, def: 10 }
     },
+    ranger: {
+        male:   { base: "🏹 Wildland Strider", evolved: "🎯 Elite Pathfinder" },
+        female: { base: "🏹 Forest Scout",     evolved: "🎯 Elite Huntress" },
+        stats:  { hp: 100, mp: 70, atk: 18, def: 11 }
+    },
     royalty: {
         male:   { base: "👑 Royal Prince",    evolved: "🏰 Sovereign King" },
         female: { base: "👑 Royal Princess",  evolved: "🏰 Sovereign Queen" },
@@ -179,7 +184,7 @@ function runStreakCalendarAudit() {
 function applyHeavyAttributePenalty(profile) {
     // Reduce stats to 80% capacity
     for (let key in profile.attributes) {
-        profile.attributes[key] = Math.max(1, Math.floor(BASE_ATTRIBUTES[key] * 0.8));
+        profile.attributes[key] = Math.max(1, Math.floor((BASE_ATTRIBUTES[key] + (profile.level - 1)) * 0.8));
     }
 }
 
@@ -226,11 +231,26 @@ function renderCharacterPanel() {
     document.getElementById("stat-atk").innerText = classData.stats.atk + profile.level;
     document.getElementById("stat-def").innerText = classData.stats.def + profile.level;
     
-    // Render the RPG Attributes panel text rows cleanly
+    // Render the RPG Attributes panel text rows with interactive visual progress bars
     let attrHtml = "";
     for (let [key, val] of Object.entries(profile.attributes)) {
-        const styleColor = profile.attributePenaltyActive ? "color: #ef4444;" : "color: #a1a1aa;";
-        attrHtml += `<div style="display:flex; justify-content:space-between; ${styleColor}"><span>${key}:</span> <strong>${val}</strong></div>`;
+        const textStyle = profile.attributePenaltyActive ? "color: #ef4444;" : "color: #a1a1aa;";
+        const barColor = profile.attributePenaltyActive ? "#ef4444" : "var(--purple, #8a2be2)";
+        
+        // Calculate a visual fill percentage based on stat progression milestone limit max (e.g. max 50 for layout caps)
+        const visualFill = Math.min(100, (val / 50) * 100); 
+        
+        attrHtml += `
+            <div style="margin-bottom: 12px; ${textStyle}">
+                <div style="display:flex; justify-content:space-between; font-size:0.85rem; margin-bottom:4px;">
+                    <span>${key}</span>
+                    <strong>${val}</strong>
+                </div>
+                <div style="background:#18181b; border:1px solid #27272a; height:6px; border-radius:3px; overflow:hidden;">
+                    <div style="background:${barColor}; width:${visualFill}%; height:100%; transition:width 0.3s ease;"></div>
+                </div>
+            </div>
+        `;
     }
     document.getElementById("attributes-display").innerHTML = attrHtml;
     
@@ -347,6 +367,7 @@ function executeQuestResolution(questId, event) {
     // Class multiplier pass-throughs
     if (profile.rpgClass === "mage") xpGain = Math.floor(xpGain * 1.2);
     if (profile.rpgClass === "rogue") goldGain = Math.floor(goldGain * 1.2);
+    if (profile.rpgClass === "ranger") xpGain = Math.floor(xpGain * 1.15); // Ranger balancing pass
     if (profile.rpgClass === "warrior") { xpGain = Math.floor(xpGain * 1.1); goldGain = Math.floor(goldGain * 1.1); }
     
     // Update internal state structures
