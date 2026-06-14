@@ -72,7 +72,7 @@ window.saveState = async function() {
     }
 };
 
-window.executeHobbyGrind = async function() {
+window.executeHobbyGrind = async function(event) {
     const activityInput = document.getElementById('hobby-grind-input');
     if (!activityInput || !activityInput.value.trim()) return alert("What activity did you complete?");
     
@@ -99,8 +99,18 @@ window.executeHobbyGrind = async function() {
     window.state.attributes[detectedAttribute] = (window.state.attributes[detectedAttribute] || 1) + 1;
     window.state.xp = newXp;
 
+    // 💥 FLOATING ENGINE DOPAMINE SPARK TRIGGER
+    if (event && event.clientX && event.clientY) {
+        const floatText = document.createElement('div');
+        floatText.className = 'floating-grind-text';
+        floatText.innerText = `+15 XP / +1 ${detectedAttribute.toUpperCase()}! 🔥`;
+        floatText.style.left = `${event.clientX}px`;
+        floatText.style.top = `${event.clientY}px`;
+        document.body.appendChild(floatText);
+        setTimeout(() => floatText.remove(), 1000);
+    }
+
     window.saveState();
-    alert(`Activity Logged! [${detectedAttribute.toUpperCase()}] leveled up for "${activityInput.value}". +${xpReward} XP!`);
     activityInput.value = '';
 
     if (newLevel > oldLevel) {
@@ -374,7 +384,7 @@ window.renderAllEngineSectors = function() {
     if(toSel) toSel.innerHTML = dropdownHtml;
     if(transEnvSel) transEnvSel.innerHTML = dropdownHtml;
 
-   const attrDiv = document.getElementById('attributes-display');
+    const attrDiv = document.getElementById('attributes-display');
     if (attrDiv) {
         const att = window.state.attributes || { strength: 1, dexterity: 1, intelligence: 1, focus: 1, endurance: 1 };
         attrDiv.innerHTML = `
@@ -417,6 +427,7 @@ window.renderAllEngineSectors = function() {
             </div>
         `;
     }
+
     const envStack = document.getElementById('envelopes-stack');
     if(envStack) {
         envStack.innerHTML = '';
