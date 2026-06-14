@@ -14,6 +14,27 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 
+// Injecting lightweight CSS keyframes for floating rewards & level up explosions
+const styleSheet = document.createElement("style");
+styleSheet.innerText = `
+@keyframes floatUpAway {
+    0% { transform: translateY(0) scale(0.8); opacity: 0; }
+    20% { opacity: 1; transform: translateY(-20px) scale(1.1); }
+    100% { transform: translateY(-80px) scale(0.9); opacity: 0; }
+}
+.floating-grind-text {
+    position: absolute;
+    pointer-events: none;
+    font-weight: bold;
+    font-family: 'Courier New', Courier, monospace;
+    font-size: 1.1rem;
+    text-shadow: 0 0 8px rgba(0,0,0,0.9);
+    animation: floatUpAway 1.2s cubic-bezier(0.25, 1, 0.5, 1) forwards;
+    z-index: 9999;
+}
+`;
+document.head.appendChild(styleSheet);
+
 const createBlankProfile = () => ({ 
     heroName: '', 
     activeIdentity: 'masc', 
@@ -24,6 +45,8 @@ const createBlankProfile = () => ({
     history: [], 
     gold: 0, 
     xp: 0, 
+    dailyStreak: 0,             // Added tracking for active streaks
+    streakShieldAvailable: true, // Added tracking for daily protective shield
     isLocked: false, 
     attributes: {
         strength: 1,
@@ -47,7 +70,7 @@ const dynamicClassMatrix = {
 };
 
 const SMART_STAT_DICTIONARY = {
-    strength: ['lift', 'weights', 'bench', 'press', 'squat', 'gym', 'pushup', 'pullup', 'workout'],
+    strength: ['lift', 'weights', 'bench', 'press', 'squat', 'gym', 'pushup', 'pullup', 'workout', 'fitness'],
     dexterity: ['carve', 'whittle', 'draw', 'paint', 'lego', 'build', 'guitar', 'piano', 'art', 'craft', 'color'],
     intelligence: ['code', 'study', 'read', 'math', 'homework', 'science', 'learn', 'book'],
     endurance: ['run', 'jog', 'bike', 'swim', 'cardio', 'soccer', 'basketball', 'tag', 'skate', 'hike', 'walk']
@@ -90,36 +113,76 @@ window.executeHobbyGrind = async function(event) {
     }
     
     const oldXp = window.state.xp || 0;
-    const xpReward = 15; 
-    const newXp = oldXp + xpReward;
+    const xpReward = Math.floor(Math.random() * 15) + 10; // Dynamic Payout: 10-25 XP
+    const goldReward = Math.floor(Math.random() * 8) + 4;  // Dynamic Payout: 4-12 Gold
     
+    const newXp = oldXp + xpReward;
     const oldLevel = Math.floor(oldXp / 100) + 1;
     const newLevel = Math.floor(newXp / 100) + 1;
 
     window.state.attributes[detectedAttribute] = (window.state.attributes[detectedAttribute] || 1) + 1;
     window.state.xp = newXp;
+    window.state.gold = (window.state.gold || 0) + goldReward;
 
-    // 💥 FLOATING ENGINE DOPAMINE SPARK TRIGGER
-    if (event && event.clientX && event.clientY) {
-        const floatText = document.createElement('div');
-        floatText.className = 'floating-grind-text';
-        floatText.innerText = `+15 XP / +1 ${detectedAttribute.toUpperCase()}! 🔥`;
-        floatText.style.left = `${event.clientX}px`;
-        floatText.style.top = `${event.clientY}px`;
-        document.body.appendChild(floatText);
-        setTimeout(() => floatText.remove(), 1000);
-    }
-
-    window.saveState();
-    activityInput.value = '';
+    let targetX = event && event.clientX ? event.clientX : window.innerWidth / 2;
+    let targetY = event && event.clientY ? event.clientY : window.innerHeight / 2;
 
     if (newLevel > oldLevel) {
+        // Full Level-Up Burst Display Mode
+        window.triggerConfettiExplosion();
         const modal = document.getElementById('level-up-modal');
         const modalText = document.getElementById('modal-level-text');
         if (modal && modalText) {
             modalText.innerText = `LEVEL ${newLevel}`;
             modal.style.display = 'flex';
         }
+    } else {
+        // Standard Grind Burst (Dopamine Visual Enhancer Fix)
+        const floatTextXp = document.createElement('div');
+        floatTextXp.className = 'floating-grind-text';
+        floatTextXp.innerText = `+${xpReward} XP 🔥`;
+        floatTextXp.style.color = '#a855f7'; 
+        floatTextXp.style.left = `${targetX - 30}px`;
+        floatTextXp.style.top = `${targetY}px`;
+        document.body.appendChild(floatTextXp);
+
+        const floatTextGold = document.createElement('div');
+        floatTextGold.className = 'floating-grind-text';
+        floatTextGold.innerText = `+🪙 ${goldReward} Gold`;
+        floatTextGold.style.color = '#ffd700';
+        floatTextGold.style.left = `${targetX + 40}px`;
+        floatTextGold.style.top = `${targetY - 15}px`;
+        document.body.appendChild(floatTextGold);
+
+        const floatTextStat = document.createElement('div');
+        floatTextStat.className = 'floating-grind-text';
+        floatTextStat.innerText = `+1 ${detectedAttribute.toUpperCase()}🎚️`;
+        floatTextStat.style.color = '#3b82f6';
+        floatTextStat.style.left = `${targetX}px`;
+        floatTextStat.style.top = `${targetY + 20}px`;
+        document.body.appendChild(floatTextStat);
+
+        setTimeout(() => {
+            floatTextXp.remove();
+            floatTextGold.remove();
+            floatTextStat.remove();
+        }, 1200);
+    }
+
+    window.saveState();
+    activityInput.value = '';
+};
+
+window.triggerConfettiExplosion = function() {
+    for (let i = 0; i < 40; i++) {
+        const particle = document.createElement('div');
+        particle.className = 'floating-grind-text';
+        particle.innerText = ['✨', '🪙', '⚡', '🎉', '🔥', '⚔️'][Math.floor(Math.random() * 6)];
+        particle.style.left = `${Math.random() * 100}vw`;
+        particle.style.top = `${Math.random() * 100}vh`;
+        particle.style.fontSize = `${Math.random() * 1.5 + 1}rem`;
+        document.body.appendChild(particle);
+        setTimeout(() => particle.remove(), 1200);
     }
 };
 
@@ -220,7 +283,26 @@ document.addEventListener('DOMContentLoaded', () => {
             const category = document.getElementById('quest-category').value;
             const difficulty = document.getElementById('quest-difficulty').value;
 
-            window.state.quests.push({ name, date, time, notes, category, difficulty, expanded: false });
+            // Engine Fix A: Automatically tie character attributes into Quest Creation
+            let mappedAttribute = 'focus';
+            const unifiedText = (category + ' ' + name).toLowerCase();
+            for (const [attribute, keywords] of Object.entries(SMART_STAT_DICTIONARY)) {
+                if (keywords.some(keyword => unifiedText.includes(keyword))) {
+                    mappedAttribute = attribute;
+                    break;
+                }
+            }
+
+            // Engine Fix B: Base point deductions directly on quest tier difficulty scales
+            let statWeight = difficulty === 'epic' ? 5 : (difficulty === 'rare' ? 3 : 1);
+
+            window.state.quests.push({ 
+                name, date, time, notes, category, difficulty, 
+                associatedAttribute: mappedAttribute, 
+                attributePoints: statWeight, 
+                expanded: false 
+            });
+            
             this.reset();
             window.saveState();
         });
@@ -486,6 +568,7 @@ window.renderAllEngineSectors = function() {
                 const timeDisplay = q.time ? ` ⏰ ${q.time}` : '';
                 const overdueTag = isOverdue ? `<span class="overdue-badge">⚠️ OVERDUE</span>` : '';
                 const timeBadge = `<span class="time-badge">📅 ${q.date}${timeDisplay}</span>${overdueTag}`;
+                const statBadge = q.associatedAttribute ? `<span style="margin-left: 8px; color: #60a5fa; font-size: 0.75rem;">🏷️ Payout: +${q.attributePoints} ${q.associatedAttribute.toUpperCase()}</span>` : '';
 
                 item.innerHTML = `
                     <div class="hold-progress-bar"></div>
@@ -496,7 +579,7 @@ window.renderAllEngineSectors = function() {
                         </div>
                         <h3 style="margin:8px 0 4px 0; font-size:1.1rem; color:var(--text-main);">${q.name || 'Unnamed Quest'}</h3>
                         <div style="display:flex; justify-content:space-between; align-items:center; width:100%; margin-top:8px;">
-                            ${timeBadge}
+                            <div>${timeBadge}${statBadge}</div>
                             <span style="font-size:0.8rem; color:var(--gold); font-weight:bold;">HOLD CARD TO CLAIM ⚔️</span>
                         </div>
                         <div class="quest-details-pane" id="quest-details-${idx}" style="display: ${q.expanded ? 'block' : 'none'}; width:100%; margin-top:12px; padding-top:12px; border-top:1px solid rgba(255,255,255,0.05); font-size:0.85rem; color:var(--text-dim);">
@@ -575,14 +658,47 @@ window.completeQuest = function(idx) {
     
     window.state.xp = (window.state.xp || 0) + xpReward;
     window.state.gold = (window.state.gold || 0) + goldReward;
+
+    // Apply the Quest-Linked Attribute Reward Payout
+    if (q.associatedAttribute && window.state.attributes) {
+        const currentVal = window.state.attributes[q.associatedAttribute] || 1;
+        window.state.attributes[q.associatedAttribute] = currentVal + (q.attributePoints || 1);
+    }
     
     if(!window.state.journalLog) window.state.journalLog = [];
-    window.state.journalLog.unshift({ date: new Date().toLocaleDateString(), category: q.category, name: q.name, notes: `+${xpReward}XP / +${goldReward}🪙` });
+    window.state.journalLog.unshift({ 
+        date: new Date().toLocaleDateString(), 
+        category: q.category, 
+        name: q.name, 
+        notes: `+${xpReward}XP / +${goldReward}🪙 / +${q.attributePoints} ${q.associatedAttribute.toUpperCase()}` 
+    });
+    
     window.state.quests.splice(idx, 1); 
     window.saveState();
 };
 
-window.deleteQuest = function(idx) { window.state.quests.splice(idx, 1); window.saveState(); };
+// Streak Shield & Attribute Point Deduction Penalty System Wrap
+window.deleteQuest = function(idx) { 
+    const missedQuest = window.state.quests[idx];
+    
+    if (missedQuest && missedQuest.associatedAttribute) {
+        // Evaluate if the active streak fallback safeguard is up
+        if ((window.state.dailyStreak || 0) > 0 && window.state.streakShieldAvailable) {
+            console.log("Streak protection shield triggered! Attribute point deduction intercepted.");
+            window.state.streakShieldAvailable = false; // Expend the active safety bubble for the day
+        } else {
+            // Apply full penalty point deductions
+            if (window.state.attributes && window.state.attributes[missedQuest.associatedAttribute]) {
+                const originalStat = window.state.attributes[missedQuest.associatedAttribute];
+                window.state.attributes[missedQuest.associatedAttribute] = Math.max(1, originalStat - missedQuest.attributePoints);
+            }
+        }
+    }
+
+    window.state.quests.splice(idx, 1); 
+    window.saveState(); 
+};
+
 window.deleteEnvelope = function(idx) { window.state.envelopes.splice(idx, 1); window.saveState(); };
 
 window.switchTab = function(tabId) { 
