@@ -374,18 +374,49 @@ window.renderAllEngineSectors = function() {
     if(toSel) toSel.innerHTML = dropdownHtml;
     if(transEnvSel) transEnvSel.innerHTML = dropdownHtml;
 
-    const attrDiv = document.getElementById('attributes-display');
+   const attrDiv = document.getElementById('attributes-display');
     if (attrDiv) {
         const att = window.state.attributes || { strength: 1, dexterity: 1, intelligence: 1, focus: 1, endurance: 1 };
         attrDiv.innerHTML = `
-            <strong>STR (Strength):</strong> 💪 ${att.strength || 1}<br>
-            <strong>DEX (Dexterity):</strong> 🎯 ${att.dexterity || 1}<br>
-            <strong>INT (Intelligence):</strong> 🧠 ${att.intelligence || 1}<br>
-            <strong>END (Endurance):</strong> 🏃‍♂️ ${att.endurance || 1}<br>
-            <strong>FOC (Focus):</strong> ⚡ ${att.focus || 1}
+            <div class="attributes-grid">
+                <div class="stat-capsule" id="capsule-str">
+                    <div class="stat-icon-wrapper">💪</div>
+                    <div class="stat-details">
+                        <span class="stat-abbv">STR (Strength)</span>
+                        <span class="stat-num-display">${att.strength || 1}</span>
+                    </div>
+                </div>
+                <div class="stat-capsule" id="capsule-dex">
+                    <div class="stat-icon-wrapper">🎯</div>
+                    <div class="stat-details">
+                        <span class="stat-abbv">DEX (Dexterity)</span>
+                        <span class="stat-num-display">${att.dexterity || 1}</span>
+                    </div>
+                </div>
+                <div class="stat-capsule" id="capsule-int">
+                    <div class="stat-icon-wrapper">🧠</div>
+                    <div class="stat-details">
+                        <span class="stat-abbv">INT (Intelligence)</span>
+                        <span class="stat-num-display">${att.intelligence || 1}</span>
+                    </div>
+                </div>
+                <div class="stat-capsule" id="capsule-end">
+                    <div class="stat-icon-wrapper">🏃‍♂️</div>
+                    <div class="stat-details">
+                        <span class="stat-abbv">END (Endurance)</span>
+                        <span class="stat-num-display">${att.endurance || 1}</span>
+                    </div>
+                </div>
+                <div class="stat-capsule" id="capsule-foc">
+                    <div class="stat-icon-wrapper">⚡</div>
+                    <div class="stat-details">
+                        <span class="stat-abbv">FOC (Focus)</span>
+                        <span class="stat-num-display">${att.focus || 1}</span>
+                    </div>
+                </div>
+            </div>
         `;
     }
-
     const envStack = document.getElementById('envelopes-stack');
     if(envStack) {
         envStack.innerHTML = '';
