@@ -67,15 +67,39 @@
             </div>
         </div>
 
-        <div class="panel" style="border: 1px solid var(--border); padding: 15px; border-radius: 8px; background: var(--card-bg);">
-            <h2 style="margin-top: 0; font-size: 1.15rem;">⚔️ RPG Attributes</h2>
-            <div id="attributes-display" style="margin-bottom: 15px; font-family: monospace; font-size: 14px; line-height: 1.5; color: var(--text-main);"></div>
-            <hr style="border: 0; border-top: 1px solid var(--border); margin: 12px 0;">
-            <h3 style="margin: 0 0 4px 0; font-size: 0.95rem;">🏋️ Log Activity Grind</h3>
-            <input type="text" id="hobby-grind-input" placeholder="What did you smash today?" style="width: 100%; padding: 8px; box-sizing: border-box; margin-bottom: 8px; background: #27272a; color: white; border: 1px solid var(--border); border-radius: 6px; font-size: 0.85rem;">
-            <button onclick="window.executeHobbyGrind()" style="width: 100%; padding: 10px; background: var(--success); color: white; border: none; border-radius: 6px; font-weight: bold; cursor: pointer; font-size: 0.85rem;">
-                Log Grind
-            </button>
+        <div class="panel" style="border: 1px solid var(--border); padding: 20px; border-radius: 12px; background: var(--card-bg); box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.2), 0 2px 4px -1px rgba(0, 0, 0, 0.1);">
+            <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 15px;">
+                <span style="font-size: 1.3rem;">⚔️</span>
+                <h2 style="margin: 0; font-size: 1.2rem; letter-spacing: 0.5px; text-transform: uppercase; color: var(--text-main);">RPG Attributes</h2>
+            </div>
+            
+            <div id="attributes-display" style="margin-bottom: 20px; font-family: 'Courier New', Courier, monospace; font-size: 14px; line-height: 1.6; color: #a1a1aa; background: #18181b; padding: 12px; border-radius: 8px; border: 1px solid #27272a;"></div>
+            
+            <hr style="border: 0; border-top: 1px solid var(--border); margin: 16px 0;">
+            
+            <div class="grind-log-zone" style="margin-top: 15px;">
+                <div style="display: flex; align-items: center; gap: 6px; margin-bottom: 8px;">
+                    <span style="font-size: 1.1rem;">🏋️</span>
+                    <label for="hobby-grind-input" style="font-size: 0.8rem; font-weight: bold; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-dim);">Log Activity Grind</label>
+                </div>
+                
+                <div style="position: relative; margin-bottom: 12px;">
+                    <input type="text" id="hobby-grind-input" placeholder="What did you smash today? (e.g., Gym Session, App Development...)" 
+                           style="width: 100%; padding: 12px 12px 12px 36px; box-sizing: border-box; background: #18181b; color: #fff; border: 1px solid #3f3f46; border-radius: 8px; font-size: 0.9rem; transition: border-color 0.2s, box-shadow 0.2s; outline: none;"
+                           onfocus="this.style.borderColor='var(--purple)'; this.style.boxShadow='0 0 0 2px rgba(138, 43, 226, 0.2)';"
+                           onblur="this.style.borderColor='#3f3f46'; this.style.boxShadow='none';">
+                    <span style="position: absolute; left: 12px; top: 50%; transform: translateY(-50%); font-size: 0.9rem; opacity: 0.5; pointer-events: none;">⚡</span>
+                </div>
+                
+                <button onclick="window.executeHobbyGrind()" 
+                        style="width: 100%; padding: 12px; background: linear-gradient(135deg, var(--success), #16a34a); color: white; border: none; border-radius: 8px; font-weight: bold; font-size: 0.9rem; letter-spacing: 0.5px; text-transform: uppercase; cursor: pointer; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.15); transition: transform 0.1s ease, filter 0.2s;"
+                        onmouseover="this.style.filter='brightness(1.1)';"
+                        onmouseout="this.style.filter='brightness(1)';"
+                        onmousedown="this.style.transform='scale(0.98)';"
+                        onmouseup="this.style.transform='scale(1)';">
+                    Execute Grind Log
+                </button>
+            </div>
         </div>
 
         <div class="panel">
@@ -118,7 +142,6 @@
 
     <div id="wallet" class="page">
         <div class="wallet-grid-layout" style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 15px;">
-            
             <div class="panel" style="margin-bottom: 0;">
                 <h2>📬 Budget Ledger Action</h2>
                 <div class="toggle-container">
@@ -168,7 +191,7 @@
         <div class="panel" style="width:100%; box-sizing:border-box;">
             <h2>Financial Health Summary</h2>
             <div class="summary-grid" style="display:grid; grid-template-columns: 1fr 1fr; gap:12px; margin-bottom:15px;">
-                <div class="summary-box" style="background:var(--navy); padding:166px; border-radius:8px; text-align:center; border:1px solid var(--border);">
+                <div class="summary-box" style="background:var(--navy); padding:16px; border-radius:8px; text-align:center; border:1px solid var(--border);">
                     <h4 style="margin:0; font-size:0.8rem; color:var(--text-dim);">Total Budget Capital</h4>
                     <p id="sum-allocated" style="margin:8px 0 0 0; font-size:1.3rem; font-weight:bold; color:var(--purple);">$0.00</p>
                 </div>
