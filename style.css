@@ -156,3 +156,85 @@
             background: var(--success);
             color: white;
         }
+/* =========================================================================
+   👑 INTERACTIVE RPG ATTRIBUTES CAPSULE GRID
+   ========================================================================= */
+.attributes-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+    gap: 10px;
+    margin-bottom: 15px;
+}
+
+.stat-capsule {
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 8px;
+    padding: 10px 12px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    transition: all 0.2s ease;
+    position: relative;
+    overflow: hidden;
+}
+
+.stat-capsule:hover {
+    background: rgba(168, 85, 247, 0.08);
+    border-color: var(--purple);
+    transform: translateY(-2px);
+}
+
+.stat-icon-wrapper {
+    font-size: 1.3rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.stat-details {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+}
+
+.stat-abbv {
+    font-size: 0.75rem;
+    font-weight: bold;
+    color: var(--text-dim);
+    letter-spacing: 0.5px;
+}
+
+.stat-num-display {
+    font-size: 1.15rem;
+    font-weight: bold;
+    color: var(--text-main);
+    margin-top: 2px;
+}
+
+/* 🟢 FLOATING IMMERSION TEXT ANIMATION ENGINE */
+.floating-grind-text {
+    position: absolute;
+    color: #39ff14; /* Neon Level-Up Green */
+    font-weight: 900;
+    font-size: 1.25rem;
+    text-shadow: 0 0 8px rgba(0, 0, 0, 0.9), 0 0 3px #000;
+    animation: floatUpAndFadeOut 1s cubic-bezier(0.18, 0.89, 0.32, 1.28) forwards;
+    pointer-events: none;
+    z-index: 10000;
+}
+
+@keyframes floatUpAndFadeOut {
+    0% {
+        transform: translateY(0) scale(0.6);
+        opacity: 0;
+    }
+    15% {
+        transform: translateY(-10px) scale(1.1);
+        opacity: 1;
+    }
+    100% {
+        transform: translateY(-65px) scale(0.9);
+        opacity: 0;
+    }
+}
