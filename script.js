@@ -126,7 +126,7 @@ function initCloudEngineSync() {
     document.getElementById("cloud-status").innerText = "📡 Requesting Cloud Connection...";
     
     // We target your exact household data path
-    const cloudDocRef = doc(db, "households", "OYfoVvk62io4l9lZxm0g");
+   const cloudDocRef = doc(db, "households", "OYfoVvk62io4l9lZxm0g", "profiles", state.activePlayer);
 
     onSnapshot(cloudDocRef, (docSnap) => {
         if (docSnap.exists()) {
@@ -162,7 +162,7 @@ async function saveEngineState() {
     
     // Stream directly up to your Firestore database document path
     try {
-        const cloudDocRef = doc(db, "households", "OYfoVvk62io4l9lZxm0g");
+       const cloudDocRef = doc(db, "households", "OYfoVvk62io4l9lZxm0g", "profiles", state.activePlayer);
         await setDoc(cloudDocRef, { profiles: state.profiles }, { merge: true });
         document.getElementById("cloud-status").innerText = "☁️ Data Secured in Cloud: " + new Date().toLocaleTimeString();
     } catch (err) {
