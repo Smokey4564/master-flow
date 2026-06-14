@@ -45,8 +45,8 @@ const createBlankProfile = () => ({
     history: [], 
     gold: 0, 
     xp: 0, 
-    dailyStreak: 0,             // Added tracking for active streaks
-    streakShieldAvailable: true, // Added tracking for daily protective shield
+    dailyStreak: 0,             
+    streakShieldAvailable: true, 
     isLocked: false, 
     attributes: {
         strength: 1,
@@ -93,84 +93,6 @@ window.saveState = async function() {
         console.warn("Network busy, cache safe locally:", err);
         if(statusEl) statusEl.textContent = "⚠️ Saved Locally (Offline)";
     }
-};
-
-window.executeHobbyGrind = async function(event) {
-    const activityInput = document.getElementById('hobby-grind-input');
-    if (!activityInput || !activityInput.value.trim()) return alert("What activity did you complete?");
-    
-    const activityName = activityInput.value.trim().toLowerCase();
-    let detectedAttribute = 'focus'; 
-    for (const [attribute, keywords] of Object.entries(SMART_STAT_DICTIONARY)) {
-        if (keywords.some(keyword => activityName.includes(keyword))) {
-            detectedAttribute = attribute;
-            break;
-        }
-    }
-
-    if (!window.state.attributes) {
-        window.state.attributes = { strength: 1, dexterity: 1, intelligence: 1, focus: 1, endurance: 1 };
-    }
-    
-    const oldXp = window.state.xp || 0;
-    const xpReward = Math.floor(Math.random() * 15) + 10; // Dynamic Payout: 10-25 XP
-    const goldReward = Math.floor(Math.random() * 8) + 4;  // Dynamic Payout: 4-12 Gold
-    
-    const newXp = oldXp + xpReward;
-    const oldLevel = Math.floor(oldXp / 100) + 1;
-    const newLevel = Math.floor(newXp / 100) + 1;
-
-    window.state.attributes[detectedAttribute] = (window.state.attributes[detectedAttribute] || 1) + 1;
-    window.state.xp = newXp;
-    window.state.gold = (window.state.gold || 0) + goldReward;
-
-    let targetX = event && event.clientX ? event.clientX : window.innerWidth / 2;
-    let targetY = event && event.clientY ? event.clientY : window.innerHeight / 2;
-
-    if (newLevel > oldLevel) {
-        // Full Level-Up Burst Display Mode
-        window.triggerConfettiExplosion();
-        const modal = document.getElementById('level-up-modal');
-        const modalText = document.getElementById('modal-level-text');
-        if (modal && modalText) {
-            modalText.innerText = `LEVEL ${newLevel}`;
-            modal.style.display = 'flex';
-        }
-    } else {
-        // Standard Grind Burst (Dopamine Visual Enhancer Fix)
-        const floatTextXp = document.createElement('div');
-        floatTextXp.className = 'floating-grind-text';
-        floatTextXp.innerText = `+${xpReward} XP 🔥`;
-        floatTextXp.style.color = '#a855f7'; 
-        floatTextXp.style.left = `${targetX - 30}px`;
-        floatTextXp.style.top = `${targetY}px`;
-        document.body.appendChild(floatTextXp);
-
-        const floatTextGold = document.createElement('div');
-        floatTextGold.className = 'floating-grind-text';
-        floatTextGold.innerText = `+🪙 ${goldReward} Gold`;
-        floatTextGold.style.color = '#ffd700';
-        floatTextGold.style.left = `${targetX + 40}px`;
-        floatTextGold.style.top = `${targetY - 15}px`;
-        document.body.appendChild(floatTextGold);
-
-        const floatTextStat = document.createElement('div');
-        floatTextStat.className = 'floating-grind-text';
-        floatTextStat.innerText = `+1 ${detectedAttribute.toUpperCase()}🎚️`;
-        floatTextStat.style.color = '#3b82f6';
-        floatTextStat.style.left = `${targetX}px`;
-        floatTextStat.style.top = `${targetY + 20}px`;
-        document.body.appendChild(floatTextStat);
-
-        setTimeout(() => {
-            floatTextXp.remove();
-            floatTextGold.remove();
-            floatTextStat.remove();
-        }, 1200);
-    }
-
-    window.saveState();
-    activityInput.value = '';
 };
 
 window.triggerConfettiExplosion = function() {
@@ -283,7 +205,6 @@ document.addEventListener('DOMContentLoaded', () => {
             const category = document.getElementById('quest-category').value;
             const difficulty = document.getElementById('quest-difficulty').value;
 
-            // Engine Fix A: Automatically tie character attributes into Quest Creation
             let mappedAttribute = 'focus';
             const unifiedText = (category + ' ' + name).toLowerCase();
             for (const [attribute, keywords] of Object.entries(SMART_STAT_DICTIONARY)) {
@@ -293,7 +214,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             }
 
-            // Engine Fix B: Base point deductions directly on quest tier difficulty scales
             let statWeight = difficulty === 'epic' ? 5 : (difficulty === 'rare' ? 3 : 1);
 
             window.state.quests.push({ 
@@ -656,10 +576,14 @@ window.completeQuest = function(idx) {
         goldReward = Math.floor(goldReward * 1.10);
     }
     
-    window.state.xp = (window.state.xp || 0) + xpReward;
+    const oldXp = window.state.xp || 0;
+    const newXp = oldXp + xpReward;
+    const oldLevel = Math.floor(oldXp / 100) + 1;
+    const newLevel = Math.floor(newXp / 100) + 1;
+
+    window.state.xp = newXp;
     window.state.gold = (window.state.gold || 0) + goldReward;
 
-    // Apply the Quest-Linked Attribute Reward Payout
     if (q.associatedAttribute && window.state.attributes) {
         const currentVal = window.state.attributes[q.associatedAttribute] || 1;
         window.state.attributes[q.associatedAttribute] = currentVal + (q.attributePoints || 1);
@@ -672,22 +596,29 @@ window.completeQuest = function(idx) {
         name: q.name, 
         notes: `+${xpReward}XP / +${goldReward}🪙 / +${q.attributePoints} ${q.associatedAttribute.toUpperCase()}` 
     });
+
+    if (newLevel > oldLevel) {
+        window.triggerConfettiExplosion();
+        const modal = document.getElementById('level-up-modal');
+        const modalText = document.getElementById('modal-level-text');
+        if (modal && modalText) {
+            modalText.innerText = `LEVEL ${newLevel}`;
+            modal.style.display = 'flex';
+        }
+    }
     
     window.state.quests.splice(idx, 1); 
     window.saveState();
 };
 
-// Streak Shield & Attribute Point Deduction Penalty System Wrap
 window.deleteQuest = function(idx) { 
     const missedQuest = window.state.quests[idx];
     
     if (missedQuest && missedQuest.associatedAttribute) {
-        // Evaluate if the active streak fallback safeguard is up
         if ((window.state.dailyStreak || 0) > 0 && window.state.streakShieldAvailable) {
             console.log("Streak protection shield triggered! Attribute point deduction intercepted.");
-            window.state.streakShieldAvailable = false; // Expend the active safety bubble for the day
+            window.state.streakShieldAvailable = false; 
         } else {
-            // Apply full penalty point deductions
             if (window.state.attributes && window.state.attributes[missedQuest.associatedAttribute]) {
                 const originalStat = window.state.attributes[missedQuest.associatedAttribute];
                 window.state.attributes[missedQuest.associatedAttribute] = Math.max(1, originalStat - missedQuest.attributePoints);
@@ -735,9 +666,6 @@ function updateFinancialSummary() {
     if(spentEl) spentEl.textContent = `$${totalSpentCalculated.toFixed(2)}`;
 }
 
-// =========================================================================
-// 📡 REAL-TIME SNAPSHOT SYNCHRONIZATION PIPELINE
-// =========================================================================
 function establishLiveSyncStream() {
     const statusEl = document.getElementById('cloud-status');
     if (activeSubListener) activeSubListener(); 
