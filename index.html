@@ -11,7 +11,7 @@
 <div class="container">
     <header>
         <div>
-            <h1 style="margin:0; font-size: 1.5rem;">Master Flow <span style="font-size:0.8rem; color:var(--purple);">v4.3.2</span></h1>
+            <h1 style="margin:0; font-size: 1.4rem;">Master Flow <span style="font-size:0.8rem; color:var(--purple); font-weight:normal;">v4.3.2</span></h1>
             <div id="cloud-status" style="font-size:0.7rem; color:var(--text-dim); margin-top:2px;">Engine Standby...</div>
         </div>
         <div class="rpg-badge-bar">
@@ -21,266 +21,83 @@
         </div>
     </header>
 
-    <div class="nav-bar" style="margin-bottom: 15px; display:flex; justify-content:space-around; background:var(--card-bg); padding:10px; border-radius:8px; border:1px solid var(--border);">
+    <div class="nav-bar">
         <button class="tab-btn active" onclick="window.switchTab('quests')">⚔️ Quests</button>
         <button class="tab-btn" onclick="window.switchTab('wallet')">📬 Wallet</button>
         <button class="tab-btn" onclick="window.switchTab('summary')">📊 Summary</button>
         <button class="tab-btn" onclick="window.switchTab('manage')">⚙️ Settings</button>
     </div>
 
-    <div class="account-bar-panel" style="background:var(--card-bg); padding:12px; border-radius:8px; margin-bottom:15px; border:1px solid var(--border);">
-        <label style="margin:0; font-size:0.75rem; text-transform:uppercase; color:var(--text-dim); font-weight:bold;">Active Hero Identity Link</label>
-        <div style="display: flex; gap: 8px; margin-top: 4px;">
-            <select id="global-player-select" onchange="window.switchPlayerProfile()" style="padding: 8px; font-size:0.9rem; flex: 2; height:38px; background:#27272a; color:white; border:1px solid var(--border); border-radius:6px;">
-                <option value="angel">Angel (Account 1)</option>
-                <option value="brianna">Brianna (Account 2)</option>
-            </select>
-        </div>
+    <div class="panel" style="padding: 10px 15px; display: flex; justify-content: space-between; align-items: center; background: var(--navy);">
+        <label for="global-player-select" style="font-size: 0.85rem; color: var(--text-dim); font-weight: bold;">Active Profile Focus:</label>
+        <select id="global-player-select" onchange="window.changePlayer(this.value)" style="background: var(--card-bg); color: white; border: 1px solid var(--border); padding: 6px 12px; border-radius: 6px; font-weight: bold;">
+            <option value="angel">Angel Anthony</option>
+            <option value="brianna">Brianna</option>
+        </select>
     </div>
 
     <div id="quests" class="page active">
-        <div class="panel" id="character-chart-panel">
-            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
-                <div style="display: flex; flex-direction: column;">
-                    <h2 style="margin:0;" id="render-hero-title">👑 Loading Hero...</h2>
-                    <span id="streak-counter-display" style="font-size:0.75rem; color:var(--gold); font-weight:bold; margin-top:2px;">🔥 Streak: 0 Days</span>
-                </div>
-                <span id="render-hero-level" style="background:var(--purple); color:white; padding:2px 8px; border-radius:12px; font-weight:bold; font-size:0.85rem;">LVL 1</span>
-            </div>
-
-            <div class="class-selector-zone" style="margin-top: 10px; padding: 5px 0; margin-bottom: 15px; display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
-                <div>
-                    <label for="hero-gender-select" style="font-size: 0.8rem; color: var(--text-dim); display: block; margin-bottom: 4px;">HERO EXPRESSION:</label>
-                    <select id="hero-gender-select" onchange="window.updateCharacterGender()" style="background: #18181b; color: white; border: 1px solid var(--border); padding: 6px; border-radius: 4px; width: 100%; cursor: pointer;">
-                        <option value="male">Male Variant</option>
-                        <option value="female">Female Variant</option>
-                    </select>
-                </div>
-                <div>
-                    <label for="hero-class-select" style="font-size: 0.8rem; color: var(--text-dim); display: block; margin-bottom: 4px;">CHOOSE YOUR PATH:</label>
-                    <select id="hero-class-select" onchange="window.updateCharacterClass()" style="background: #1a1a2e; color: #ffd700; border: 1px solid #8a2be2; padding: 6px; border-radius: 4px; font-weight: bold; width: 100%; cursor: pointer;">
-                        <option value="warrior">🛡️ Guardian / Valkyrie</option>
-                        <option value="mage">🔮 Archmage / Sorceress</option>
-                        <option value="rogue">⚡ Assassin / Phantom</option>
-                        <option value="ranger">🏹 Strider / Huntress</option>
-                        <option value="royalty">👑 Royalty (Prince / Princess)</option>
-                        <option value="cleric">🙏 Devotional (Cleric / Priestess)</option>
-                    </select>
-                </div>
-            </div>
-            
-            <div style="background:#27272a; border-radius:6px; height:14px; width:100%; overflow:hidden; margin-bottom:12px; border:1px solid #3f3f46; position:relative;">
-                <div id="render-xp-bar" style="background:linear-gradient(90deg, var(--purple), #a855f7); width:0%; height:100%; transition:width 0.4s ease;"></div>
-                <div id="render-xp-text" style="position:absolute; width:100%; text-align:center; top:0; left:0; font-size:0.65rem; font-weight:bold; line-height:14px; color:white;">0 / 100 XP</div>
-            </div>
-
-            <div style="display:grid; grid-template-columns: 1fr 1fr; gap:10px; font-size:0.85rem; color:var(--text-dim);" id="character-matrix-slots">
-                <div>❤️ HP: <span id="stat-hp" style="color:var(--text-main); font-weight:bold;">--</span></div>
-                <div>🔮 MP: <span id="stat-mp" style="color:var(--text-main); font-weight:bold;">--</span></div>
-                <div>⚔️ ATK: <span id="stat-atk" style="color:var(--text-main); font-weight:bold;">--</span></div>
-                <div>🛡️ DEF: <span id="stat-def" style="color:var(--text-main); font-weight:bold;">--</span></div>
-            </div>
-        </div>
-
-        <div class="panel" style="border: 1px solid var(--border); padding: 20px; border-radius: 12px; background: var(--card-bg); box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.2);">
-            <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 15px;">
-                <span style="font-size: 1.3rem;">⚔️</span>
-                <h2 style="margin: 0; font-size: 1.2rem; letter-spacing: 0.5px; text-transform: uppercase; color: var(--text-main);">RPG Attributes</h2>
-            </div>
-            <div id="attributes-display" style="background: #18181b; padding: 16px; border-radius: 8px; border: 1px solid #27272a;"></div>
-        </div>
-
         <div class="panel">
-            <h2>⚔️ Post a Guild Notice (New Quest)</h2>
-            <form id="quest-form">
-                <input type="text" id="quest-name" placeholder="Quest Objective Name..." required style="width:100%; padding:10px; margin-bottom:10px; background:#27272a; color:white; border:1px solid var(--border); border-radius:6px; box-sizing:border-box;">
-                <div style="display:flex; gap:10px; margin-bottom:10px;">
-                    <input type="date" id="quest-date" required style="flex:1; padding:10px; background:#27272a; color:white; border:1px solid var(--border); border-radius:6px;">
-                    <input type="time" id="quest-time" style="flex:1; padding:10px; background:#27272a; color:white; border:1px solid var(--border); border-radius:6px;">
-                </div>
-                <textarea id="quest-notes" placeholder="Optional Quest Details / Notes / Requirements..." rows="2" style="width:100%; margin-bottom:10px; padding:10px; border:1px solid var(--border); background-color:#27272a; color:white; border-radius:6px; box-sizing:border-box; font-family:inherit;"></textarea>
-                <div style="display:flex; gap:10px; margin-bottom:10px;">
-                    <select id="quest-category" style="flex:1; padding:10px; background:#27272a; color:white; border:1px solid var(--border); border-radius:6px;">
-                        <option value="📚 School/Studying">📚 School/Studying</option>
-                        <option value="🏠 House Task">🏠 House Task</option>
-                        <option value="💼 Work/Career">💼 Work/Career</option>
-                        <option value="💻 Coding/App Dev">💻 Coding/App Dev</option>
-                        <option value="💪 Fitness/Gym">💪 Fitness/Gym</option>
-                        <option value="🌲 Outdoor/Chill">🌲 Outdoor/Chill</option>
-                        <option value="💅 Personal Care">💅 Personal Care</option>
-                        <option value="🎮 Digital/Game Time">🎮 Digital/Game Time</option>
-                        <option value="❤️ Family Time">❤️ Family Time</option>
-                        <option value="🙏 Worship/Devotion">🙏 Worship/Devotion</option>
-                        <option value="🛠️ Maintenance/Repairs">🛠️ Maintenance/Repairs</option>
-                        <option value="🛒 Errands/Shopping">🛒 Errands/Shopping</option>
-                        <option value="🎯 Personal Habit">🎯 Personal Habit</option>
-                    </select>
-                    <select id="quest-difficulty" style="flex:1; padding:10px; background:#27272a; color:white; border:1px solid var(--border); border-radius:6px;">
-                        <option value="common">Common (25 XP / 10 Gold)</option>
-                        <option value="rare">Rare (60 XP / 25 Gold)</option>
-                        <option value="epic">Epic (120 XP / 50 Gold)</option>
-                    </select>
-                </div>
-                <button type="submit" class="btn-submit" style="width:100%; background:var(--purple); color:white; border:none; padding:12px; border-radius:6px; font-weight:bold; cursor:pointer;">Post to Board</button>
-            </form>
+            <h2>⚔️ Dynamic Quest Board</h2>
+            <div id="quests-list-container">
+                <p style="color:var(--text-dim); text-align:center;">No active quest objectives currently on your board.</p>
+            </div>
         </div>
-
-        <div style="margin-bottom: 10px; display: flex; justify-content: flex-end;">
-            <select id="quest-board-filter" onchange="window.renderQuestsBoard()" style="padding: 8px; background: var(--card-bg); color: white; border: 1px solid var(--border); border-radius: 6px; font-size: 0.85rem;">
-                <option value="all">All Attributes / Categories</option>
-                <option value="💪 Fitness/Gym">💪 Fitness/Gym Focus</option>
-                <option value="💻 Coding/App Dev">💻 Coding/App Dev Focus</option>
-                <option value="📚 School/Studying">📚 School/Studying Focus</option>
-                <option value="🛠️ Maintenance/Repairs">🛠️ Maintenance Focus</option>
-                <option value="🙏 Worship/Devotion">🙏 Worship Focus</option>
-            </select>
-        </div>
-
-        <div id="quests-board" class="cards-stack"></div>
     </div>
 
     <div id="wallet" class="page">
-        <div class="wallet-grid-layout" style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 15px;">
-            <div class="panel" style="margin-bottom: 0;">
-                <h2>📬 Budget Ledger Action</h2>
-                <div class="toggle-container">
-                    <div id="toggle-spend" class="toggle-option active spend" onclick="window.setWalletMode('spend')">💸 Process Spend</div>
-                    <div id="toggle-deposit" class="toggle-option deposit" onclick="window.setWalletMode('deposit')">💰 Add Funds</div>
-                </div>
-
-                <form id="trans-form">
-                    <select id="trans-envelope" required style="width:100%; padding:10px; margin-bottom:10px; background:#27272a; color:white; border:1px solid var(--border); border-radius:6px;"></select>
-                    <input type="text" id="trans-memo" placeholder="Memo Description Details..." required style="width:100%; padding:10px; margin-bottom:10px; background:#27272a; color:white; border:1px solid var(--border); border-radius:6px; box-sizing:border-box;">
-                    <input type="number" id="trans-amount" step="0.01" placeholder="Amount ($0.00)" required style="width:100%; padding:10px; margin-bottom:10px; background:#27272a; color:white; border:1px solid var(--border); border-radius:6px; box-sizing:border-box;">
-                    <button id="trans-submit-btn" type="submit" class="btn-submit" style="width:100%; background:var(--danger); color:white; border:none; padding:12px; border-radius:6px; font-weight:bold; cursor:pointer;">Process Deduction</button>
-                </form>
+        <div class="panel">
+            <h2>📬 Budget Cash Envelopes</h2>
+            <div id="envelopes-list-container">
+                <p style="color:var(--text-dim); text-align:center;">No active budget storage vectors found.</p>
             </div>
+        </div>
+    </div>
 
-            <div class="panel" style="margin-bottom: 0;">
-                <h2>💸 Envelope Transfer</h2>
-                <p style="margin-top: 0; font-size: 0.8rem; color: var(--text-dim);">Move money safely between active budget allocations.</p>
-                
-                <label style="display:block; margin-bottom: 2px; font-size: 0.75rem; font-weight: bold; color: var(--text-dim);">From Envelope:</label>
-                <select id="transfer-from-select" style="width: 100%; padding: 8px; margin-bottom: 8px; background: #27272a; color: white; border: 1px solid var(--border); border-radius: 6px; font-size: 0.85rem;"></select>
-                
-                <label style="display:block; margin-bottom: 2px; font-size: 0.75rem; font-weight: bold; color: var(--text-dim);">To Envelope:</label>
-                <select id="transfer-to-select" style="width: 100%; padding: 8px; margin-bottom: 8px; background: #27272a; color: white; border: 1px solid var(--border); border-radius: 6px; font-size: 0.85rem;"></select>
-                
-                <label style="display:block; margin-bottom: 2px; font-size: 0.75rem; font-weight: bold; color: var(--text-dim);">Amount ($):</label>
-                <input type="number" id="transfer-amount-input" step="0.01" placeholder="0.00" style="width: 100%; padding: 8px; box-sizing: border-box; margin-bottom: 10px; background: #27272a; color: white; border: 1px solid var(--border); border-radius: 6px; font-size: 0.85rem;">
-                
-                <button onclick="window.executeEnvelopeTransfer()" style="width: 100%; padding: 10px; background: #2196F3; color: white; border: none; border-radius: 6px; font-weight: bold; cursor: pointer; font-size: 0.85rem;">
-                    Confirm Asset Relocation
-                </button>
+    <div id="summary" class="page">
+        <div class="panel">
+            <h2>📊 Real-time Financial Audit</h2>
+            <div class="summary-grid">
+                <div class="summary-box">
+                    <h4>Total Allocated</h4>
+                    <p id="sum-allocated" style="color:var(--primary);">$0.00</p>
+                </div>
+                <div class="summary-box">
+                    <h4>Total Safe Balance</h4>
+                    <p id="sum-remaining" style="color:var(--success);">$0.00</p>
+                </div>
             </div>
         </div>
 
         <div class="panel">
-            <h2>Create Budget Envelope</h2>
-            <div style="display:flex; flex-direction:column; gap:10px;">
-                <input type="text" id="new-envelope-name" placeholder="Envelope name" style="width:100%; padding:10px; background:#27272a; color:white; border:1px solid var(--border); border-radius:6px; box-sizing:border-box;">
-                <input type="number" id="new-envelope-balance" step="0.01" placeholder="Starting balance" style="width:100%; padding:10px; background:#27272a; color:white; border:1px solid var(--border); border-radius:6px; box-sizing:border-box;">
-                <button id="btn-add-envelope" type="button" class="btn-submit" style="width:100%; background:var(--purple); color:white; border:none; padding:12px; border-radius:6px; font-weight:bold; cursor:pointer;">Create Envelope</button>
-            </div>
-        </div>
-        <div id="envelopes-stack" class="cards-stack"></div>
-    </div>
-
-    <div id="summary" class="page">
-        <div class="panel" style="width:100%; box-sizing:border-box;">
-            <h2>Financial Health Summary</h2>
-            <div class="summary-grid" style="display:grid; grid-template-columns: 1fr 1fr; gap:12px; margin-bottom:15px;">
-                <div class="summary-box" style="background:var(--navy); padding:16px; border-radius:8px; text-align:center; border:1px solid var(--border);">
-                    <h4 style="margin:0; font-size:0.8rem; color:var(--text-dim);">Total Budget Capital</h4>
-                    <p id="sum-allocated" style="margin:8px 0 0 0; font-size:1.3rem; font-weight:bold; color:var(--purple);">$0.00</p>
-                </div>
-                <div class="summary-box" style="background:var(--navy); padding:16px; border-radius:8px; text-align:center; border:1px solid var(--border);">
-                    <h4 style="margin:0; font-size:0.8rem; color:var(--text-dim);">Historical Total Spent</h4>
-                    <p id="sum-spent" style="margin:8px 0 0 0; font-size:1.3rem; font-weight:bold; color:var(--danger);">$0.00</p>
-                </div>
-            </div>
-        </div>
-
-        <div class="panel" style="width:100%; box-sizing:border-box;">
-            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
-                <h2>💸 Wallet Transaction Ledger</h2>
-                <select id="ledger-time-filter" onchange="window.updateSummaryFilters()" style="padding:6px; background:#27272a; color:white; border:1px solid var(--border); border-radius:4px; font-size:0.8rem;">
-                    <option value="all">All-Time</option>
-                    <option value="week">Past 7 Days</option>
-                    <option value="month">Past 30 Days</option>
-                </select>
-            </div>
-            <div style="overflow-x:auto;">
-                <table style="width:100%; text-align:left; border-collapse:collapse; font-size:0.9rem;">
+            <h2>📜 Historical Ledger Log</h2>
+            <div class="journal-table-wrapper">
+                <table class="journal-table">
                     <thead>
-                        <tr style="border-bottom:1px solid var(--border); color:var(--text-dim);">
-                            <th style="padding:8px;">Date</th>
-                            <th style="padding:8px;">Envelope Location</th>
-                            <th style="padding:8px;">Memo Item</th>
-                            <th style="padding:8px;">Flow Delta</th>
+                        <tr>
+                            <th>Date</th>
+                            <th>Category</th>
+                            <th>Objective</th>
+                            <th>Notes</th>
                         </tr>
                     </thead>
-                    <tbody id="wallet-ledger-body"></tbody>
+                    <tbody id=\"journal-table-body\">
+                        </tbody>
                 </table>
-            </div>
-            <div style="display:flex; justify-content:center; gap:15px; margin-top:10px; align-items:center;">
-                <button onclick="window.changeLedgerPage(-1)" style="padding:4px 10px; background:#27272a; color:white; border:1px solid var(--border); border-radius:4px; cursor:pointer;">‹ Prev</button>
-                <span id="ledger-page-num" style="font-size:0.8rem; color:var(--text-dim);">Page 1</span>
-                <button onclick="window.changeLedgerPage(1)" style="padding:4px 10px; background:#27272a; color:white; border:1px solid var(--border); border-radius:4px; cursor:pointer;">Next ›</button>
-            </div>
-        </div>
-
-        <div class="panel" style="width:100%; box-sizing:border-box;">
-            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
-                <h2>⚔️ Quest Victory Chronicle</h2>
-                <select id="chronicle-time-filter" onchange="window.updateSummaryFilters()" style="padding:6px; background:#27272a; color:white; border:1px solid var(--border); border-radius:4px; font-size:0.8rem;">
-                    <option value="all">All-Time</option>
-                    <option value="week">Past 7 Days</option>
-                    <option value="month">Past 30 Days</option>
-                </select>
-            </div>
-            <div style="overflow-x:auto;">
-                <table style="width:100%; text-align:left; border-collapse:collapse; font-size:0.9rem;">
-                    <thead>
-                        <tr style="border-bottom:1px solid var(--border); color:var(--text-dim);">
-                            <th style="padding:8px;">Date</th>
-                            <th style="padding:8px;">Guild Notice</th>
-                            <th style="padding:8px;">Quest Completed</th>
-                            <th style="padding:8px;">Bounty Rewards</th>
-                        </tr>
-                    </thead>
-                    <tbody id="quest-chronicle-body"></tbody>
-                </table>
-            </div>
-            <div style="display:flex; justify-content:center; gap:15px; margin-top:10px; align-items:center;">
-                <button onclick="window.changeChroniclePage(-1)" style="padding:4px 10px; background:#27272a; color:white; border:1px solid var(--border); border-radius:4px; cursor:pointer;">‹ Prev</button>
-                <span id="chronicle-page-num" style="font-size:0.8rem; color:var(--text-dim);">Page 1</span>
-                <button onclick="window.changeChroniclePage(1)" style="padding:4px 10px; background:#27272a; color:white; border:1px solid var(--border); border-radius:4px; cursor:pointer;">Next ›</button>
             </div>
         </div>
     </div>
 
     <div id="manage" class="page">
         <div class="panel">
-            <h2>Global Controls</h2>
+            <h2>Global Engine Diagnostics</h2>
             <div style="margin-bottom:15px;">
-                <label for="hero-name-input" style="display:block; margin-bottom:6px; font-size:0.8rem; color:var(--text-dim); font-weight:bold;">Hero Name Configuration</label>
+                <label for="hero-name-input" style="display:block; margin-bottom:6px; font-size:0.8rem; color:var(--text-dim); font-weight:bold;">Identity Profile Moniker</label>
                 <input type="text" id="hero-name-input" placeholder="Set identity nickname..." style="width:100%; padding:10px; margin-bottom:10px; background:#27272a; color:white; border:1px solid var(--border); border-radius:6px; box-sizing:border-box;">
-                <button id="btn-save-hero-name" type="button" class="btn-submit" style="width:100%; background:var(--purple); color:white; border:none; padding:12px; border-radius:6px; font-weight:bold; cursor:pointer;">Update Identity</button>
+                <button id="btn-save-hero-name" type="button" class="btn-submit">Update Identity Name</button>
             </div>
-            <button class="btn-submit" style="background:var(--danger); width:100%; color:white; border:none; padding:12px; border-radius:6px; font-weight:bold; cursor:pointer;" onclick="window.wipeEntireEngine()">Wipe Current Profile (Reset)</button>
+            <button class="btn-submit" style="background:var(--danger);" onclick="window.wipeEntireEngine()">Wipe Current Profile (Reset)</button>
         </div>
-    </div>
-</div>
-
-<div id="level-up-modal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); z-index: 9999; justify-content: center; align-items: center; color: white; text-align: center; font-family: sans-serif;">
-    <div style="background: #222; padding: 40px; border: 4px solid #FFD700; border-radius: 12px; max-width: 400px; width: 90%;">
-        <h1 style="color: #FFD700; font-size: 42px; margin: 0 0 10px 0;">LEVEL UP!</h1>
-        <p style="font-size: 18px; margin-bottom: 20px;">Your grinding has broken the barrier.</p>
-        <h2 id="modal-level-text" style="font-size: 28px; margin-bottom: 30px; color: #4CAF50;">LEVEL 2</h2>
-        <button onclick="window.closeLevelUpModal()" style="padding: 12px 30px; background: #FFD700; color: #000; font-weight: bold; border: none; border-radius: 4px; cursor: pointer; font-size: 16px;">
-            Claim Glory
-        </button>
     </div>
 </div>
 
