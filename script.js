@@ -11,13 +11,15 @@ import { getFirestore, doc, setDoc, onSnapshot, getDoc } from "https://www.gstat
 // 🔐 FIREBASE CLOUD CONFIGURATION INTERFACE
 // ==========================================
 // PASTE YOUR WEBPAGE APP CREDENTIALS FROM FIREBASE CONSOLE HERE:
+// For Firebase JS SDK v7.20.0 and later, measurementId is optional
 const firebaseConfig = {
-    apiKey: "YOUR_API_KEY_HERE",
-    authDomain: "YOUR_AUTH_DOMAIN_HERE",
-    projectId: "YOUR_PROJECT_ID_HERE",
-    storageBucket: "YOUR_STORAGE_BUCKET_HERE",
-    messagingSenderId: "YOUR_MESSAGING_SENDER_ID_HERE",
-    appId: "YOUR_APP_ID_HERE"
+  apiKey: "AIzaSyDD4FGcNxHJT7wDh3hPMqudUYzEmDz8lbw",
+  authDomain: "master-flow-d9d4b.firebaseapp.com",
+  projectId: "master-flow-d9d4b",
+  storageBucket: "master-flow-d9d4b.firebasestorage.app",
+  messagingSenderId: "716546159295",
+  appId: "1:716546159295:web:ae13d55413b31debd2cc0a",
+  measurementId: "G-YHC9KZNQ2N"
 };
 
 // Initialize Firebase Core Engines
