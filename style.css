@@ -10,6 +10,10 @@
             --navy: #181825;
             --gold: #ffd700;
         }
+/* Ensure padding/borders don't blow out container alignments */
+*, *::before, *::after {
+    box-sizing: border-box;
+}
         body {
             background-color: #09090b;
             color: var(--text-main);
