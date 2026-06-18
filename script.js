@@ -28,16 +28,16 @@ const db = getFirestore(app);
 
 // Global App State Machine
 let state = {
-    activePlayer: 'angel',
-    activeTab: 'quests',
-    walletMode: 'spend',
-    questPage: 1,
-    ledgerPage: 1,
-    chroniclePage: 1,
-    rowsPerPage: 5,
-    profiles: {}
+  activePlayer: 'angel',
+  currentHouseholdId: 'OYfoVvk62io4l9lZxm0g', // 👈 Add this line right here!
+  activeTab: 'quests',
+  walletMode: 'spend',
+  questPage: 1,
+  ledgerPage: 1,
+  chroniclePage: 1,
+  rowsPerPage: 5,
+  profiles: {}
 };
-
 // RPG Class Title Matrix matching Gender Expression & Level Milestone Evolution
 const CLASS_MATRIX = {
     warrior: {
@@ -132,35 +132,56 @@ document.addEventListener("DOMContentLoaded", () => {
 // ==========================================
 // ⚡ COMPREHENSIVE CLOUD DATA PIPELINE
 // ==========================================
+// 🌐 MULTI-HOUSEHOLD LIVE STREAM SYNCHRONIZATION PIPELINE
 function initializeCloudSync() {
-    const defaultIds = ['angel', 'brianna'];
-    document.getElementById("cloud-status").innerText = "🛰️ Connecting to Firestore...";
+  const statusEl = document.getElementById("cloud-status");
+  
+  // Reads our dynamic tracking variable from the top of the file
+  const targetHousehold = state.currentHouseholdId || 'OYfoVvk62io4l9lZxm0g';
+  
+  if (statusEl) statusEl.innerText = `⏳ Connecting...`;
 
-    defaultIds.forEach(id => {
-        const localData = localStorage.getItem(`masterflow_backup_${id}`);
-        if (localData) {
-            state.profiles[id] = JSON.parse(localData);
-        } else {
-            state.profiles[id] = createBlankProfile(id, id.charAt(0).toUpperCase() + id.slice(1));
+  // 🔗 Dynamic live data stream connection
+  onSnapshot(doc(db, "households", targetHousehold), (snapshot) => {
+    if (snapshot.exists()) {
+      const incomingCloudData = snapshot.data();
+      const id = state.activePlayer;
+      
+      // Route data cleanly to whoever is playing right now
+      if (incomingCloudData && incomingCloudData[id]) {
+        state.profiles[id] = incomingCloudData[id];
+        
+        // 💾 YOUR LOCAL BACKUP ENGINE FEATURE: Saves a hard copy to the browser local memory
+        localStorage.setItem(`masterflow_backup_${id}`, JSON.stringify(state.profiles[id]));
+        
+        // ⚡ STREAK AUDIT ENGINE: Runs your streak updates on fresh data tick
+        if (typeof runStreakCalendarAudit === 'function') {
+          runStreakCalendarAudit();
         }
-
-        // Set up active real-time cloud data streams
-        onSnapshot(doc(db, "profiles", id), (snapshot) => {
-            if (snapshot.exists()) {
-                state.profiles[id] = snapshot.data();
-                localStorage.setItem(`masterflow_backup_${id}`, JSON.stringify(state.profiles[id]));
-                if (state.activePlayer === id) {
-                    runStreakCalendarAudit();
-                    renderEntireViewport();
-                }
-            } else {
-                // If cloud is blank but local exists, seed the cloud immediately
-                pushProfileToCloud(id);
-            }
-        });
-    });
-
+      } else {
+        // Safe Fallback for New Testers
+        state.profiles[id] = createBlankProfile();
+      }
+      if (statusEl) statusEl.innerText = "🟢 Cloud Sync Active";
+    } else {
+      // Automatic New House Setup
+      state.profiles[state.activePlayer] = createBlankProfile();
+      if (statusEl) statusEl.innerText = "🟡 New House Created";
+    }
+    
+    // Draw visual changes on screen instantly
+    if (typeof renderEntireViewport === 'function') {
+      renderEntireViewport();
+    }
+  }, (error) => {
+    console.error("Pipeline link failure: ", error);
+    if (statusEl) statusEl.innerText = "🔴 Sync Disconnected";
+  });
+}
+// 2. The Dropdown Selection Switcher Block (Keep this separate right below!)
+function handlePlayerChange() {
     state.activePlayer = document.getElementById("global-player-select").value || 'angel';
+    initializeCloudSync();
     renderEntireViewport();
 }
 
