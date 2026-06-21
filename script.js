@@ -135,48 +135,58 @@ document.addEventListener("DOMContentLoaded", () => {
 // 🌐 MULTI-HOUSEHOLD LIVE STREAM SYNCHRONIZATION PIPELINE
 function initializeCloudSync() {
   const statusEl = document.getElementById("cloud-status");
-  
-  // Reads our dynamic tracking variable from the top of the file
   const targetHousehold = state.currentHouseholdId || 'OYfoVvk62io4l9lZxm0g';
   
-  if (statusEl) statusEl.innerText = `⏳ Connecting...`;
+  if (statusEl) statusEl.innerText = `⏳ Scanning House: ${targetHousehold.substring(0,6)}...`;
 
-  // 🔗 Dynamic live data stream connection
-  onSnapshot(doc(db, "households", targetHousehold), (snapshot) => {
-    if (snapshot.exists()) {
-      const incomingCloudData = snapshot.data();
-      const id = state.activePlayer;
-      
-      // Route data cleanly to whoever is playing right now
-      if (incomingCloudData && incomingCloudData[id]) {
-        state.profiles[id] = incomingCloudData[id];
-        
-        // 💾 YOUR LOCAL BACKUP ENGINE FEATURE: Saves a hard copy to the browser local memory
-        localStorage.setItem(`masterflow_backup_${id}`, JSON.stringify(state.profiles[id]));
-        
-        // ⚡ STREAK AUDIT ENGINE: Runs your streak updates on fresh data tick
-        if (typeof runStreakCalendarAudit === 'function') {
-          runStreakCalendarAudit();
+  try {
+    // 🔍 SQL-style query: "Find all documents in household_leaderboard where household_id matches ours"
+    const q = query(
+      collection(db, "household_leaderboard"), 
+      where("household_id", "==", targetHousehold)
+    );
+
+    // 🔗 Bind the live listener to our filtered query search
+    onSnapshot(q, (querySnapshot) => {
+      // Clear out old memory tracking to prepare for fresh household data
+      state.profiles = {};
+
+      if (!querySnapshot.empty) {
+        querySnapshot.forEach((docSnap) => {
+          const playerId = docSnap.id; // e.g., "angel" or "brianna"
+          state.profiles[playerId] = docSnap.data();
+        });
+
+        // Set our active profile pointer safely from the newly streamed data
+        const id = state.activePlayer;
+        if (state.profiles[id]) {
+          localStorage.setItem(`masterflow_backup_${id}`, JSON.stringify(state.profiles[id]));
+          if (typeof runStreakCalendarAudit === 'function') {
+            runStreakCalendarAudit();
+          }
+        } else {
+          // Fallback if the house exists but your specific character slot is missing
+          state.profiles[id] = createBlankProfile(id, id.charAt(0).toUpperCase() + id.slice(1));
         }
+        if (statusEl) statusEl.innerText = "🟢 Cloud Sync Active";
       } else {
-        // Safe Fallback for New Testers
-        state.profiles[id] = createBlankProfile();
+        // Empty House Initializer
+        const id = state.activePlayer;
+        state.profiles[id] = createBlankProfile(id, id.charAt(0).toUpperCase() + id.slice(1));
+        if (statusEl) statusEl.innerText = "💡 Empty House Initialized";
       }
-      if (statusEl) statusEl.innerText = "🟢 Cloud Sync Active";
-    } else {
-      // Automatic New House Setup
-      state.profiles[state.activePlayer] = createBlankProfile();
-      if (statusEl) statusEl.innerText = "🟡 New House Created";
-    }
-    
-    // Draw visual changes on screen instantly
-    if (typeof renderEntireViewport === 'function') {
-      renderEntireViewport();
-    }
-  }, (error) => {
-    console.error("Pipeline link failure: ", error);
-    if (statusEl) statusEl.innerText = "🔴 Sync Disconnected";
-  });
+
+      // Render view changes seamlessly across your viewport grids
+      if (typeof renderEntireViewport === 'function') {
+        renderEntireViewport();
+      }
+    }, (error) => {
+      console.error("Pipeline link failure: ", error);
+      if (statusEl) statusEl.innerText = "🔴 Sync Disconnected";
+    });
+  } catch (err) {
+    console.error("Failed to construct query pipeline: ", err);
+  }
 }
 // 2. The Dropdown Selection Switcher Block (Keep this separate right below!)
 function handlePlayerChange() {
@@ -186,14 +196,31 @@ function handlePlayerChange() {
 }
 
 async function pushProfileToCloud(id) {
-    try {
-        await setDoc(doc(db, "profiles", id), state.profiles[id]);
-        localStorage.setItem(`masterflow_backup_${id}`, JSON.stringify(state.profiles[id]));
-        document.getElementById("cloud-status").innerText = "☁️ Cloud Matrix Synchronized Securely";
-    } catch (err) {
-        console.error("Cloud push failed, falling back safely to local drive storage: ", err);
-        document.getElementById("cloud-status").innerText = "📴 Operating via Local Safety Backup Drive";
-    }
+  const targetHousehold = state.currentHouseholdId || 'OYfoVvk62io4l9lZxm0g';
+  
+  try {
+    // Target the exact user document inside your actual collection
+    const docRef = doc(db, "household_leaderboard", id);
+    
+    // Grab your current profile data state object
+    const profileData = { ...state.profiles[id] };
+    
+    // 🛡️ Safety Enforcement: Ensure the household token field is locked into the document
+    profileData.household_id = targetHousehold;
+    
+    // Overwrite the document cleanly with our updated state profile values
+    await setDoc(docRef, profileData);
+    
+    localStorage.setItem(`masterflow_backup_${id}`, JSON.stringify(state.profiles[id]));
+    
+    const statusEl = document.getElementById("cloud-status");
+    if (statusEl) statusEl.innerText = "🟢 Cloud Matrix Synchronized Securely";
+    console.log(`📡 Saved straight to household_leaderboard/${id} for house: ${targetHousehold}`);
+  } catch (err) {
+    console.error("Cloud push failed: ", err);
+    const statusEl = document.getElementById("cloud-status");
+    if (statusEl) statusEl.innerText = "📴 Operating via Local Safety Backup Drive";
+  }
 }
 
 function createBlankProfile(id, structuralName) {
