@@ -125,10 +125,85 @@ const SoundEngine = {
 
 // Initialize App Lifecycle
 document.addEventListener("DOMContentLoaded", () => {
-    setupEventHandlers();
-    initializeCloudSync();
+  setupEventHandlers();
+  
+  // 🛡️ The Gatekeeper intercepts the bootup loop here
+  runGatekeeperCheck(); 
 });
+// 🔍 CHECK FOR REGISTERED ROOM KEY ON DEVICE BOOTUP
+function runGatekeeperCheck() {
+  const modal = document.getElementById("gatekeeper-modal");
+  
+  // Try to pull existing credentials from phone's local storage memory
+  const savedPlayer = localStorage.getItem("masterflow_active_player");
+  const savedHouse = localStorage.getItem("masterflow_household_id");
 
+  if (savedPlayer && savedHouse) {
+    // 🟢 Credentials Found! Pass variables seamlessly straight to state machine
+    state.activePlayer = savedPlayer;
+    state.currentHouseholdId = savedHouse;
+    
+    // Hide the blocker overlay completely
+    if (modal) modal.style.display = "none";
+    
+    // Fire up your live Firebase Cloud sync pipeline
+    initializeCloudSync();
+  } else {
+    // ⛔ New Device Detected! Force open the overlay form
+    if (modal) modal.style.display = "flex";
+    
+    // Attach event click trigger to the submit button
+    document.getElementById("btn-submit-onboarding").addEventListener("click", executeHeroOnboarding);
+  }
+}
+
+async function executeHeroOnboarding() {
+  const rawName = document.getElementById("onboard-hero-name").value.trim();
+  let rawHouse = document.getElementById("onboard-house-id").value.trim();
+  
+  if (!rawName) {
+    alert("❌ Your Hero requires a name to step into the tracking field!");
+    return;
+  }
+
+  const playerId = rawName.toLowerCase().replace(/\s+/g, "_"); // Format name safely for Firestore Doc title
+
+  // 🎲 AUTOMATIC HOUSE ID GENERATION LOGIC
+  if (!rawHouse) {
+    // Roll a clean, random 6-digit numeric string identifier
+    rawHouse = String(Math.floor(100000 + Math.random() * 900000));
+    alert(`🏠 Forging Brand New Household! Your unique 6-digit Room Key is: ${rawHouse}\n\nWrite this down in your notebook so others can link to your house!`);
+  }
+
+  try {
+    const statusBtn = document.getElementById("btn-submit-onboarding");
+    if (statusBtn) statusBtn.innerText = "⏳ Seeding Cloud Records...";
+
+    // 1. Build a clean, initial blank profile data template structure
+    const newProfile = createBlankProfile(playerId, rawName);
+    newProfile.household_id = rawHouse; // Inject the room-key identifier directly
+
+    // 2. Write the fresh profile document straight up to household_leaderboard collection
+    await setDoc(doc(db, "household_leaderboard", playerId), newProfile);
+
+    // 3. Optional: Seed the master house metadata record to your households collection
+    await setDoc(doc(db, "households", rawHouse), { 
+      created_by: playerId, 
+      timestamp: Date.now() 
+    });
+
+    // 4. Set the native local storage lock variables onto the phone's memory
+    localStorage.setItem("masterflow_active_player", playerId);
+    localStorage.setItem("masterflow_household_id", rawHouse);
+
+    // 5. Force a full hard reload of the screen state to transition smoothly into live gameplay mode
+    window.location.reload();
+    
+  } catch (err) {
+    console.error("Onboarding database seed crash: ", err);
+    alert("🔴 System link failed. Check your Firebase network pipeline settings.");
+  }
+}
 // ==========================================
 // ⚡ COMPREHENSIVE CLOUD DATA PIPELINE
 // ==========================================
