@@ -210,17 +210,26 @@ async function executeHeroOnboarding() {
 // 🌐 MULTI-HOUSEHOLD LIVE STREAM SYNCHRONIZATION PIPELINE
 function initializeCloudSync() {
   const statusEl = document.getElementById("cloud-status");
-  const targetHousehold = state.currentHouseholdId || 'OYfoVvk62io4l9lZxm0g';
   
-  if (statusEl) statusEl.innerText = `⏳ Scanning House: ${targetHousehold.substring(0,6)}...`;
+  // 🛡️ STRICT HOUSEHOLD ISOLATION LOCK
+  // Strip out the hardcoded 'OYfoVvk62io4l9lZxm0g' fallback entirely!
+  const targetHousehold = state.currentHouseholdId;
+
+  // Safety break: If there is no active household assigned yet, abort the sync loop
+  if (!targetHousehold) {
+    console.warn("⚠️ Cloud Sync aborted: No Household ID loaded into local state machine yet.");
+    if (statusEl) statusEl.innerText = "🔒 Awaiting House Registration...";
+    return;
+  }
+
+  if (statusEl) statusEl.innerText = `⏳ Scanning House: ${targetHousehold}`;
 
   try {
-    // 🔍 SQL-style query: "Find all documents in household_leaderboard where household_id matches ours"
+    // SQL-style query: "Find all documents in household_leaderboard matching this specific 6-digit key"
     const q = query(
-      collection(db, "household_leaderboard"), 
+      collection(db, "household_leaderboard"),
       where("household_id", "==", targetHousehold)
     );
-
     // 🔗 Bind the live listener to our filtered query search
     onSnapshot(q, (querySnapshot) => {
       // Clear out old memory tracking to prepare for fresh household data
