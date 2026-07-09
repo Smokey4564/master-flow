@@ -270,7 +270,8 @@ function initializeCloudSync() {
           // Fallback if the house exists but your specific character slot is missing
           state.profiles[id] = createBlankProfile(id, id.charAt(0).toUpperCase() + id.slice(1));
         }
-        if (statusEl) statusEl.innerText = "🟢 Cloud Sync Active";
+        if (statusEl) {
+          statusEl.innerText = "🟢 Cloud Sync Active";
       } else {
         // Empty House Initializer
         const id = state.activePlayer;
