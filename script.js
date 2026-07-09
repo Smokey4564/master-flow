@@ -212,42 +212,53 @@ function initializeCloudSync() {
   const statusEl = document.getElementById("cloud-status");
   
   // 🛡️ STRICT HOUSEHOLD ISOLATION LOCK
-  // Strip out the hardcoded 'OYfoVvk62io4l9lZxm0g' fallback entirely!
   const targetHousehold = state.currentHouseholdId;
 
   console.log("📡 [SYSTEM DIAGNOSTIC] Target Household ID:", targetHousehold);
   console.log("👤 [SYSTEM DIAGNOSTIC] Active Player ID:", state.activePlayer);
+
   // Safety break: If there is no active household assigned yet, abort the sync loop
   if (!targetHousehold) {
     console.warn("⚠️ Cloud Sync aborted: No Household ID loaded into local state machine yet.");
-  if (statusEl) { 
-statusEl.innerText = "🔒 Awaiting House Registration..."; 
-}
- return;
+    if (statusEl) { 
+      statusEl.innerText = "🔒 Awaiting House Registration..."; 
+    }
+    return;
   }
 
-  if (statusEl) statusEl.innerText = `⏳ Scanning House: ${targetHousehold}`;
+  if (statusEl) {
+    statusEl.innerText = `⏳ Scanning House: ${targetHousehold}`;
+  }
 
   try {
-    // SQL-style query: "Find all documents in household_leaderboard matching this specific 6-digit key"
+    // Query Firestore for documents matching the household ID
     const q = query(
       collection(db, "household_leaderboard"),
       where("household_id", "==", targetHousehold)
     );
-    // 🔗 Bind the live listener to our filtered query search
+
+    // Bind live snapshot listener
     onSnapshot(q, (querySnapshot) => {
       // Clear out old memory tracking to prepare for fresh household data
       state.profiles = {};
 
       if (!querySnapshot.empty) {
         querySnapshot.forEach((docSnap) => {
-          const playerId = docSnap.id; // e.g., "angel" or "brianna"
+          const playerId = docSnap.id; 
           state.profiles[playerId] = docSnap.data();
         });
-// 🔍 Breadcrumb 2
-console.log("🔥 [FIRESTORE FETCH] Profiles loaded:", Object.keys(state.profiles));
+      }
 
-renderApp();
+      // 🔍 Breadcrumb 2: Log downloaded profiles
+      console.log("🔥 [FIRESTORE FETCH] Profiles loaded:", Object.keys(state.profiles));
+
+      renderApp();
+    });
+
+  } catch (err) {
+    console.error("🔴 Cloud Sync Pipeline Crash:", err);
+  }
+}
         // Set our active profile pointer safely from the newly streamed data
         const id = state.activePlayer;
         if (state.profiles[id]) {
