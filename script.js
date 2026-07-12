@@ -635,7 +635,55 @@ function renderSummaryTables() {
             walletBody.appendChild(tr);
         });
     }
-    
+
+  // ✉️ ENVELOPE MANAGER (Edit & Delete Controller)
+function openEditEnvelopeModal(envelopeId) {
+  if (!state.envelopes || !state.envelopes[envelopeId]) {
+    console.warn("⚠️ Envelope not found in local state:", envelopeId);
+    return;
+  }
+
+  const env = state.envelopes[envelopeId];
+  const envName = env.name || envelopeId;
+  const envTarget = env.target || 0;
+
+  // Prompt user for action choice
+  const action = prompt(
+    `✉️ ENVELOPE MANAGER: "${envName}" ($${envTarget})\n\nSelect an action:\n[1] Edit Name & Target\n[2] Delete Envelope\n\nType 1 or 2:`,
+    "1"
+  );
+
+  if (action === "2") {
+    // Delete Path
+    const confirmDelete = confirm(`⚠️ Are you sure you want to permanently delete the "${envName}" envelope?`);
+    if (confirmDelete) {
+      delete state.envelopes[envelopeId];
+      if (typeof saveStateToCloud === 'function') saveStateToCloud();
+      if (typeof renderEntireViewport === 'function') renderEntireViewport();
+      console.log(`🗑️ Envelope deleted: ${envelopeId}`);
+    }
+    return;
+  }
+
+  if (action === "1") {
+    // Edit Path
+    const newName = prompt("Enter new Envelope Name:", envName);
+    if (newName === null || newName.trim() === "") return; // Canceled or empty
+
+    const newTarget = prompt("Enter new Target Amount ($):", envTarget);
+    if (newTarget === null) return; // Canceled
+
+    const parsedTarget = parseFloat(newTarget);
+
+    // Save updates
+    state.envelopes[envelopeId].name = newName.trim();
+    state.envelopes[envelopeId].target = isNaN(parsedTarget) ? 0 : parsedTarget;
+
+    if (typeof saveStateToCloud === 'function') saveStateToCloud();
+    if (typeof renderEntireViewport === 'function') renderEntireViewport();
+    console.log(`✏️ Envelope updated: ${envelopeId}`);
+  }
+}
     const chronicleBody = document.getElementById("quest-chronicle-body"); chronicleBody.innerHTML = "";
     if (viewChronicle.length === 0) {
         chronicleBody.innerHTML = `<tr><td colspan="4" style="padding:15px; text-align:center; color:var(--text-dim);">No quest archives verified.</td></tr>`;
