@@ -745,7 +745,9 @@ window.openEditEnvelopeModal = function(envelopeId) {
 }
 
 function renderEnvelopesView() {
-    const profile = state.profiles[state.activePlayer]; if (!profile) return;
+    const profile = state.profiles ? state.profiles[state.activePlayer] : null; 
+    if (!profile) return;
+
     const stack = document.getElementById("envelopes-stack");
     const transSelect = document.getElementById("trans-envelope");
     const trfFrom = document.getElementById("transfer-from-select");
@@ -758,15 +760,47 @@ function renderEnvelopesView() {
 
     if (!profile.envelopes || !Array.isArray(profile.envelopes)) return;
 
+    // 🎨 Helper for envelope health status (Self-contained)
+    const calculateStatus = function(currentBalance, targetAmount, minThreshold) {
+        const current = parseFloat(currentBalance) || 0;
+        const target = (parseFloat(targetAmount) > 0) ? parseFloat(targetAmount) : 100;
+        const min = parseFloat(minThreshold) || 0;
+
+        const percentRemaining = (current / target) * 100;
+        const distanceToMin = current - min;
+
+        // 🔴 RED ZONE
+        if (percentRemaining <= 15 || distanceToMin <= 25) {
+            return {
+                color: "#ef4444",
+                message: `⚠️ Last $${current.toFixed(2)} in this envelope! Spend wisely.`
+            };
+        }
+
+        // 🟡 YELLOW ZONE
+        if (percentRemaining <= 30) {
+            return {
+                color: "#f59e0b",
+                message: "⚡ Budget getting low. Keep an eye on entries."
+            };
+        }
+
+        // 🟢 GREEN ZONE
+        return {
+            color: "#10b981",
+            message: "✅ Budget healthy."
+        };
+    };
+
     profile.envelopes.forEach(env => {
         const card = document.createElement("div"); 
         card.className = "card";
 
-        // 🎨 Calculate dynamic budget health status
-const targetVal = env.target || 100;
-const status = window.getEnvelopeStatus(env.balance, targetVal, env.minThreshold || 0);
+        // Calculate health status locally
+        const targetVal = env.target || 100;
+        const status = calculateStatus(env.balance, targetVal, env.minThreshold || 0);
 
-        // 💳 Render card with edit button & low balance warning text
+        // Render Card HTML
         card.innerHTML = `
           <div style="display:flex; flex-direction:column; gap:6px; width:100%;">
             <div style="display:flex; justify-content:space-between; align-items:center;">
