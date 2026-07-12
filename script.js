@@ -636,54 +636,59 @@ function renderSummaryTables() {
         });
     }
 
-  // ✉️ ENVELOPE MANAGER (Edit & Delete Controller)
-function openEditEnvelopeModal(envelopeId) {
-  if (!state.envelopes || !state.envelopes[envelopeId]) {
-    console.warn("⚠️ Envelope not found in local state:", envelopeId);
+// ✉️ ENVELOPE MANAGER (Edit & Delete Controller)
+window.openEditEnvelopeModal = function(envelopeId) {
+  const profile = state.profiles ? state.profiles[state.activePlayer] : null;
+  if (!profile || !profile.envelopes) {
+    console.warn("⚠️ Profile or envelopes array not found in state");
     return;
   }
 
-  const env = state.envelopes[envelopeId];
-  const envName = env.name || envelopeId;
-  const envTarget = env.target || 0;
+  // Find the target envelope inside profile.envelopes array
+  let targetIndex = -1;
+  if (Array.isArray(profile.envelopes)) {
+    targetIndex = profile.envelopes.findIndex(e => (e.id || e.name) === envelopeId);
+  }
 
-  // Prompt user for action choice
+  if (targetIndex === -1) {
+    alert("⚠️ Envelope not found!");
+    return;
+  }
+
+  const targetEnv = profile.envelopes[targetIndex];
+  const envName = targetEnv.name || "Envelope";
+  const envBalance = targetEnv.balance || 0;
+
+  // Prompt action choice
   const action = prompt(
-    `✉️ ENVELOPE MANAGER: "${envName}" ($${envTarget})\n\nSelect an action:\n[1] Edit Name & Target\n[2] Delete Envelope\n\nType 1 or 2:`,
+    `✉️ ENVELOPE MANAGER: "${envName}" ($${envBalance.toFixed(2)})\n\nSelect an action:\n[1] Edit Name\n[2] Delete Envelope\n\nType 1 or 2:`,
     "1"
   );
 
   if (action === "2") {
-    // Delete Path
-    const confirmDelete = confirm(`⚠️ Are you sure you want to permanently delete the "${envName}" envelope?`);
-    if (confirmDelete) {
-      delete state.envelopes[envelopeId];
+    if (confirm(`⚠️ Are you sure you want to delete "${envName}"?`)) {
+      profile.envelopes.splice(targetIndex, 1);
+      
       if (typeof saveStateToCloud === 'function') saveStateToCloud();
       if (typeof renderEntireViewport === 'function') renderEntireViewport();
-      console.log(`🗑️ Envelope deleted: ${envelopeId}`);
+      else if (typeof renderEnvelopesView === 'function') renderEnvelopesView();
+      console.log(`🗑️ Envelope deleted: ${envName}`);
     }
     return;
   }
 
   if (action === "1") {
-    // Edit Path
     const newName = prompt("Enter new Envelope Name:", envName);
-    if (newName === null || newName.trim() === "") return; // Canceled or empty
+    if (newName === null || newName.trim() === "") return;
 
-    const newTarget = prompt("Enter new Target Amount ($):", envTarget);
-    if (newTarget === null) return; // Canceled
-
-    const parsedTarget = parseFloat(newTarget);
-
-    // Save updates
-    state.envelopes[envelopeId].name = newName.trim();
-    state.envelopes[envelopeId].target = isNaN(parsedTarget) ? 0 : parsedTarget;
+    targetEnv.name = newName.trim();
 
     if (typeof saveStateToCloud === 'function') saveStateToCloud();
     if (typeof renderEntireViewport === 'function') renderEntireViewport();
-    console.log(`✏️ Envelope updated: ${envelopeId}`);
+    else if (typeof renderEnvelopesView === 'function') renderEnvelopesView();
+    console.log(`✏️ Envelope updated: ${newName}`);
   }
-}
+};
     const chronicleBody = document.getElementById("quest-chronicle-body"); chronicleBody.innerHTML = "";
     if (viewChronicle.length === 0) {
         chronicleBody.innerHTML = `<tr><td colspan="4" style="padding:15px; text-align:center; color:var(--text-dim);">No quest archives verified.</td></tr>`;
