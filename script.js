@@ -716,7 +716,7 @@ function renderEnvelopesView() {
     
     profile.envelopes.forEach(env => {
         const card = document.createElement("div"); card.className = "envelope-card panel"; card.style.borderLeft = "4px solid #2196F3";
-        card.innerHTML = `<div style="display:flex; justify-content:space-between; align-items:center;"><h3 style="margin:0; font-size:1rem;">${env.name}</h3><span style="font-size:1.1rem; font-weight:bold; color:#2196F3;">$${env.balance.toFixed(2)}</span></div>`;
+       card.innerHTML = `<div style="display:flex; justify-content:space-between; align-items:center;"><div style="display:flex; align-items:center; gap:8px;"><h3 style="margin:0; font-size:1rem;">${env.name}</h3><button onclick="openEditEnvelopeModal('${env.id || env.name}')" style="background:none; border:none; cursor:pointer; font-size:0.9rem; padding:0;" title="Edit or Delete">✏️</button></div><span style="font-size:1.1rem; font-weight:bold; color:#2196F3;">$${env.balance.toFixed(2)}</span></div>`;
         stack.appendChild(card);
         
         const opt = `<option value="${env.id}">${env.name} ($${env.balance.toFixed(2)})</option>`;
