@@ -636,37 +636,40 @@ function renderSummaryTables() {
         });
     }
 
-  // 🎨 ENVELOPE HEALTH COLOR CALCULATOR
-function getEnvelopeStatus(currentBalance, targetAmount, minThreshold = 0) {
-  const target = targetAmount > 0 ? targetAmount : 1; // Prevent division by zero
-  const percentRemaining = (currentBalance / target) * 100;
-  const distanceToMin = currentBalance - minThreshold;
+ // 🎨 ENVELOPE HEALTH COLOR CALCULATOR
+window.getEnvelopeStatus = function(currentBalance, targetAmount, minThreshold) {
+  const current = parseFloat(currentBalance) || 0;
+  const target = (parseFloat(targetAmount) > 0) ? parseFloat(targetAmount) : 100;
+  const min = parseFloat(minThreshold) || 0;
 
-  // 🔴 RED ZONE: 15% or less OR within $25 of the minimum threshold
+  const percentRemaining = (current / target) * 100;
+  const distanceToMin = current - min;
+
+  // 🔴 RED ZONE
   if (percentRemaining <= 15 || distanceToMin <= 25) {
     return {
-      color: "#ef4444", // Red
+      color: "#ef4444",
       status: "DANGER",
-      message: `⚠️ Last $${currentBalance.toFixed(2)} in this envelope! Spend wisely.`
+      message: `⚠️ Last $${current.toFixed(2)} in this envelope! Spend wisely.`
     };
   }
 
-  // 🟡 YELLOW ZONE: Between 15% and 30%
+  // 🟡 YELLOW ZONE
   if (percentRemaining <= 30) {
     return {
-      color: "#f59e0b", // Yellow/Amber
+      color: "#f59e0b",
       status: "CAUTION",
       message: "⚡ Budget getting low. Keep an eye on entries."
     };
   }
 
-  // 🟢 GREEN ZONE: Healthy balance
+  // 🟢 GREEN ZONE
   return {
-    color: "#10b981", // Green
+    color: "#10b981",
     status: "SAFE",
     message: "✅ Budget healthy."
   };
-}
+};
 // ✉️ ENVELOPE MANAGER (Edit & Delete Controller)
 window.openEditEnvelopeModal = function(envelopeId) {
   const profile = state.profiles ? state.profiles[state.activePlayer] : null;
