@@ -636,6 +636,37 @@ function renderSummaryTables() {
         });
     }
 
+  // 🎨 ENVELOPE HEALTH COLOR CALCULATOR
+function getEnvelopeStatus(currentBalance, targetAmount, minThreshold = 0) {
+  const target = targetAmount > 0 ? targetAmount : 1; // Prevent division by zero
+  const percentRemaining = (currentBalance / target) * 100;
+  const distanceToMin = currentBalance - minThreshold;
+
+  // 🔴 RED ZONE: 15% or less OR within $25 of the minimum threshold
+  if (percentRemaining <= 15 || distanceToMin <= 25) {
+    return {
+      color: "#ef4444", // Red
+      status: "DANGER",
+      message: `⚠️ Last $${currentBalance.toFixed(2)} in this envelope! Spend wisely.`
+    };
+  }
+
+  // 🟡 YELLOW ZONE: Between 15% and 30%
+  if (percentRemaining <= 30) {
+    return {
+      color: "#f59e0b", // Yellow/Amber
+      status: "CAUTION",
+      message: "⚡ Budget getting low. Keep an eye on entries."
+    };
+  }
+
+  // 🟢 GREEN ZONE: Healthy balance
+  return {
+    color: "#10b981", // Green
+    status: "SAFE",
+    message: "✅ Budget healthy."
+  };
+}
 // ✉️ ENVELOPE MANAGER (Edit & Delete Controller)
 window.openEditEnvelopeModal = function(envelopeId) {
   const profile = state.profiles ? state.profiles[state.activePlayer] : null;
@@ -716,16 +747,45 @@ function renderEnvelopesView() {
     const transSelect = document.getElementById("trans-envelope");
     const trfFrom = document.getElementById("transfer-from-select");
     const trfTo = document.getElementById("transfer-to-select");
-    
-    stack.innerHTML = ""; transSelect.innerHTML = ""; trfFrom.innerHTML = ""; trfTo.innerHTML = "";
-    
+
+    if (stack) stack.innerHTML = "";
+    if (transSelect) transSelect.innerHTML = "";
+    if (trfFrom) trfFrom.innerHTML = "";
+    if (trfTo) trfTo.innerHTML = "";
+
+    if (!profile.envelopes || !Array.isArray(profile.envelopes)) return;
+
     profile.envelopes.forEach(env => {
-        const card = document.createElement("div"); card.className = "envelope-card panel"; card.style.borderLeft = "4px solid #2196F3";
-       card.innerHTML = `<div style="display:flex; justify-content:space-between; align-items:center;"><div style="display:flex; align-items:center; gap:8px;"><h3 style="margin:0; font-size:1rem;">${env.name}</h3><button onclick="openEditEnvelopeModal('${env.id || env.name}')" style="background:none; border:none; cursor:pointer; font-size:0.9rem; padding:0;" title="Edit or Delete">✏️</button></div><span style="font-size:1.1rem; font-weight:bold; color:#2196F3;">$${env.balance.toFixed(2)}</span></div>`;
-        stack.appendChild(card);
-        
-        const opt = `<option value="${env.id}">${env.name} ($${env.balance.toFixed(2)})</option>`;
-        transSelect.innerHTML += opt; trfFrom.innerHTML += opt; trfTo.innerHTML += opt;
+        const card = document.createElement("div"); 
+        card.className = "card";
+
+        // 🎨 Calculate dynamic budget health status
+        const targetVal = env.target || 100; // Default target if not set
+        const status = getEnvelopeStatus(env.balance, targetVal, env.minThreshold || 0);
+
+        // 💳 Render card with edit button & low balance warning text
+        card.innerHTML = `
+          <div style="display:flex; flex-direction:column; gap:6px; width:100%;">
+            <div style="display:flex; justify-content:space-between; align-items:center;">
+              <div style="display:flex; align-items:center; gap:8px;">
+                <h3 style="margin:0; font-size:1rem;">${env.name}</h3>
+                <button onclick="openEditEnvelopeModal('${env.id || env.name}')" style="background:none; border:none; cursor:pointer; font-size:0.9rem; padding:0;" title="Edit or Delete">✏️</button>
+              </div>
+              <span style="font-size:1.1rem; font-weight:bold; color:${status.color};">$${env.balance.toFixed(2)}</span>
+            </div>
+            <div style="font-size:0.75rem; color:${status.color}; opacity:0.9;">
+              ${status.message}
+            </div>
+          </div>
+        `;
+
+        if (stack) stack.appendChild(card);
+
+        // Populate dropdown selectors for transactions
+        const opt = `<option value="${env.id || env.name}">${env.name} ($${env.balance.toFixed(2)})</option>`;
+        if (transSelect) transSelect.innerHTML += opt;
+        if (trfFrom) trfFrom.innerHTML += opt;
+        if (trfTo) trfTo.innerHTML += opt;
     });
 }
 
