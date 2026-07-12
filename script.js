@@ -247,18 +247,7 @@ function initializeCloudSync() {
           const playerId = docSnap.id; 
           state.profiles[playerId] = docSnap.data();
         });
-      }
 
-      // 🔍 Breadcrumb 2: Log downloaded profiles
-      console.log("🔥 [FIRESTORE FETCH] Profiles loaded:", Object.keys(state.profiles));
-
-      renderApp();
-    });
-
-  } catch (err) {
-    console.error("🔴 Cloud Sync Pipeline Crash:", err);
-  }
-}
         // Set our active profile pointer safely from the newly streamed data
         const id = state.activePlayer;
         if (state.profiles[id]) {
@@ -270,8 +259,7 @@ function initializeCloudSync() {
           // Fallback if the house exists but your specific character slot is missing
           state.profiles[id] = createBlankProfile(id, id.charAt(0).toUpperCase() + id.slice(1));
         }
-        if (statusEl) {
-          statusEl.innerText = "🟢 Cloud Sync Active";
+        if (statusEl) statusEl.innerText = "🟢 Cloud Sync Active";
       } else {
         // Empty House Initializer
         const id = state.activePlayer;
@@ -279,14 +267,19 @@ function initializeCloudSync() {
         if (statusEl) statusEl.innerText = "💡 Empty House Initialized";
       }
 
-      // Render view changes seamlessly across your viewport grids
+      // 🔍 Breadcrumb 2: Log downloaded profiles
+      console.log("🔥 [FIRESTORE FETCH] Profiles loaded:", Object.keys(state.profiles));
+
       if (typeof renderEntireViewport === 'function') {
         renderEntireViewport();
+      } else if (typeof renderApp === 'function') {
+        renderApp();
       }
     }, (error) => {
       console.error("Pipeline link failure: ", error);
       if (statusEl) statusEl.innerText = "🔴 Sync Disconnected";
     });
+
   } catch (err) {
     console.error("Failed to construct query pipeline: ", err);
   }
