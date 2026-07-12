@@ -283,7 +283,6 @@ function initializeCloudSync() {
       if (typeof renderEntireViewport === 'function') {
         renderEntireViewport();
       }
-}
     }, (error) => {
       console.error("Pipeline link failure: ", error);
       if (statusEl) statusEl.innerText = "🔴 Sync Disconnected";
