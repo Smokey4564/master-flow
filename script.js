@@ -763,8 +763,8 @@ function renderEnvelopesView() {
         card.className = "card";
 
         // 🎨 Calculate dynamic budget health status
-        const targetVal = env.target || 100; // Default target if not set
-        const status = getEnvelopeStatus(env.balance, targetVal, env.minThreshold || 0);
+const targetVal = env.target || 100;
+const status = window.getEnvelopeStatus(env.balance, targetVal, env.minThreshold || 0);
 
         // 💳 Render card with edit button & low balance warning text
         card.innerHTML = `
