@@ -176,12 +176,13 @@
         </div>
 
         <div class="panel">
-            <h2>Create Budget Envelope</h2>
-            <div style="display:flex; flex-direction:column; gap:10px;">
-                <input type="text" id="new-envelope-name" placeholder="Envelope name" style="width:100%; padding:10px; background:#27272a; color:white; border:1px solid var(--border); border-radius:6px; box-sizing:border-box;">
-                <input type="number" id="new-envelope-balance" step="0.01" placeholder="Starting balance" style="width:100%; padding:10px; background:#27272a; color:white; border:1px solid var(--border); border-radius:6px; box-sizing:border-box;">
-                <button id="btn-add-envelope" type="button" class="btn-submit" style="width:100%; background:var(--purple); color:white; border:none; padding:12px; border-radius:6px; font-weight:bold; cursor:pointer;">Create Envelope</button>
-            </div>
+  <h3>Create Budget Envelope</h3>
+  <input type="text" id="new-envelope-name" placeholder="Envelope name">
+  <input type="number" id="new-envelope-balance" placeholder="Starting balance ($)">
+  <input type="number" id="new-envelope-target" placeholder="Target monthly goal ($)">
+  <input type="number" id="new-envelope-min" placeholder="Min safety threshold ($)">
+  <button onclick="createNewEnvelope()">Create Envelope</button>
+</div>
         </div>
         <div id="envelopes-stack" class="cards-stack"></div>
     </div>
