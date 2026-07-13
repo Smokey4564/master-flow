@@ -832,77 +832,85 @@ function setupEventHandlers() {
         state.activeTab = tabId;
         document.querySelectorAll(".page").forEach(p => p.classList.remove("active"));
         document.querySelectorAll(".tab-btn").forEach(b => b.classList.remove("active"));
-        document.getElementById(tabId).classList.add("active");
-        const btnNode = Array.from(document.querySelectorAll(".tab-btn")).find(b => b.getAttribute("onclick").includes(tabId));
+        const targetTab = document.getElementById(tabId);
+        if (targetTab) targetTab.classList.add("active");
+        const btnNode = Array.from(document.querySelectorAll(".tab-btn")).find(b => b.getAttribute("onclick")?.includes(tabId));
         if (btnNode) btnNode.classList.add("active");
     };
 
     window.switchPlayerProfile = function() {
-        state.activePlayer = document.getElementById("global-player-select").value;
+        const sel = document.getElementById("global-player-select");
+        if (sel) state.activePlayer = sel.value;
         state.questPage = 1; state.ledgerPage = 1; state.chroniclePage = 1;
-        runStreakCalendarAudit();
+        if (typeof runStreakCalendarAudit === 'function') runStreakCalendarAudit();
         renderEntireViewport();
     };
 
-    document.getElementById("quest-form").onsubmit = function(e) {
-        e.preventDefault();
-        const profile = state.profiles[state.activePlayer];
-        
-        // Adds quest safely to the active array without checking out unearned attribute bonuses early
-        profile.activeQuests.push({
-            id: 'qst-' + Date.now(),
-            name: document.getElementById("quest-name").value,
-            date: document.getElementById("quest-date").value,
-            time: document.getElementById("quest-time").value,
-            notes: document.getElementById("quest-notes").value,
-            category: document.getElementById("quest-category").value,
-            difficulty: document.getElementById("quest-difficulty").value
-        });
-        
-        document.getElementById("quest-form").reset();
-        pushProfileToCloud(profile.id);
-        renderEntireViewport();
-    };
+    const questForm = document.getElementById("quest-form");
+    if (questForm) {
+        questForm.onsubmit = function(e) {
+            e.preventDefault();
+            const profile = state.profiles[state.activePlayer];
+            
+            profile.activeQuests.push({
+                id: 'qst-' + Date.now(),
+                name: document.getElementById("quest-name").value,
+                date: document.getElementById("quest-date").value,
+                time: document.getElementById("quest-time").value,
+                notes: document.getElementById("quest-notes").value,
+                category: document.getElementById("quest-category").value,
+                difficulty: document.getElementById("quest-difficulty").value
+            });
+            
+            questForm.reset();
+            if (typeof pushProfileToCloud === 'function') pushProfileToCloud(profile.id);
+            renderEntireViewport();
+        };
+    }
 
-    document.getElementById("trans-form").onsubmit = function(e) {
-        e.preventDefault();
-        const profile = state.profiles[state.activePlayer];
-        const envId = document.getElementById("trans-envelope").value;
-        const memo = document.getElementById("trans-memo").value;
-        let amt = parseFloat(document.getElementById("trans-amount").value);
-        if (isNaN(amt) || amt <= 0) return;
-        
-        const targetEnv = profile.envelopes.find(env => env.id === envId);
-        if (state.walletMode === 'spend') {
-            amt = -amt;
-            if (targetEnv.balance + amt < 0) { alert("Denied! Envelope allocation deficit protocol active."); return; }
-        }
-        
-        targetEnv.balance += amt;
-        profile.walletBalance += amt;
-        profile.walletLedger.unshift({ date: new Date().toLocaleDateString(), envelope: targetEnv.name, memo: memo, amount: amt });
-        
-        document.getElementById("trans-form").reset();
-        pushProfileToCloud(profile.id);
-        renderEntireViewport();
-    };
+    const transForm = document.getElementById("trans-form");
+    if (transForm) {
+        transForm.onsubmit = function(e) {
+            e.preventDefault();
+            const profile = state.profiles[state.activePlayer];
+            const envId = document.getElementById("trans-envelope").value;
+            const memo = document.getElementById("trans-memo").value;
+            let amt = parseFloat(document.getElementById("trans-amount").value);
+            if (isNaN(amt) || amt <= 0) return;
+            
+            const targetEnv = profile.envelopes.find(env => env.id === envId);
+            if (state.walletMode === 'spend') {
+                amt = -amt;
+                if (targetEnv.balance + amt < 0) { alert("Denied! Envelope allocation deficit protocol active."); return; }
+            }
+            
+            targetEnv.balance += amt;
+            profile.walletBalance += amt;
+            profile.walletLedger.unshift({ date: new Date().toLocaleDateString(), envelope: targetEnv.name, memo: memo, amount: amt });
+            
+            transForm.reset();
+            if (typeof pushProfileToCloud === 'function') pushProfileToCloud(profile.id);
+            renderEntireViewport();
+        };
+    }
 
     const addEnvBtn = document.getElementById("btn-add-envelope");
-if (addEnvBtn) {
-  addEnvBtn.onclick = function() {
-        const profile = state.profiles[state.activePlayer];
-        const name = document.getElementById("new-envelope-name").value;
-        const bal = parseFloat(document.getElementById("new-envelope-balance").value) || 0;
-        if (!name) return;
-        
-        profile.envelopes.push({ id: 'env-' + Date.now(), name: "📂 " + name, balance: bal });
-        profile.walletBalance += bal;
-        
-        document.getElementById("new-envelope-name").value = "";
-        document.getElementById("new-envelope-balance").value = "";
-        pushProfileToCloud(profile.id);
-        renderEntireViewport();
-    };
+    if (addEnvBtn) {
+        addEnvBtn.onclick = function() {
+            const profile = state.profiles[state.activePlayer];
+            const name = document.getElementById("new-envelope-name").value;
+            const bal = parseFloat(document.getElementById("new-envelope-balance").value) || 0;
+            if (!name) return;
+            
+            profile.envelopes.push({ id: 'env-' + Date.now(), name: "📂 " + name, balance: bal });
+            profile.walletBalance += bal;
+            
+            document.getElementById("new-envelope-name").value = "";
+            document.getElementById("new-envelope-balance").value = "";
+            if (typeof pushProfileToCloud === 'function') pushProfileToCloud(profile.id);
+            renderEntireViewport();
+        }; // <--- PROPERLY CLOSED HERE NOW!
+    }
 
     window.executeEnvelopeTransfer = function() {
         const profile = state.profiles[state.activePlayer];
@@ -919,81 +927,98 @@ if (addEnvBtn) {
         profile.walletLedger.unshift({ date: new Date().toLocaleDateString(), envelope: `🔄 Transfer Hub`, memo: `Moved from ${sEnv.name.split(" ")[1]} to ${tEnv.name.split(" ")[1]}`, amount: 0 });
         
         document.getElementById("transfer-amount-input").value = "";
-        pushProfileToCloud(profile.id);
+        if (typeof pushProfileToCloud === 'function') pushProfileToCloud(profile.id);
         renderEntireViewport();
     };
 
     window.setWalletMode = function(mode) {
         state.walletMode = mode;
         const sBtn = document.getElementById("toggle-spend"), dBtn = document.getElementById("toggle-deposit"), sub = document.getElementById("trans-submit-btn");
-        if (mode === 'spend') { sBtn.classList.add("active"); dBtn.classList.remove("active"); sub.innerText = "Process Deduction"; sub.style.backgroundColor = "var(--danger)"; }
-        else { dBtn.classList.add("active"); sBtn.classList.remove("active"); sub.innerText = "Execute Allocation Deposit"; sub.style.backgroundColor = "var(--success)"; }
+        if (mode === 'spend') { 
+            if (sBtn) sBtn.classList.add("active"); 
+            if (dBtn) dBtn.classList.remove("active"); 
+            if (sub) { sub.innerText = "Process Deduction"; sub.style.backgroundColor = "var(--danger)"; }
+        } else { 
+            if (dBtn) dBtn.classList.add("active"); 
+            if (sBtn) sBtn.classList.remove("active"); 
+            if (sub) { sub.innerText = "Execute Allocation Deposit"; sub.style.backgroundColor = "var(--success)"; }
+        }
     };
 
-    document.getElementById("btn-save-hero-name").onclick = function() {
-        const inputVal = document.getElementById("hero-name-input").value;
-        if (!inputVal) return;
-        state.profiles[state.activePlayer].name = inputVal;
-        pushProfileToCloud(state.activePlayer);
-        renderEntireViewport();
-    };
+    const saveHeroBtn = document.getElementById("btn-save-hero-name");
+    if (saveHeroBtn) {
+        saveHeroBtn.onclick = function() {
+            const inputVal = document.getElementById("hero-name-input").value;
+            if (!inputVal) return;
+            state.profiles[state.activePlayer].name = inputVal;
+            if (typeof pushProfileToCloud === 'function') pushProfileToCloud(state.activePlayer);
+            renderEntireViewport();
+        };
+    }
 
     window.abandonQuest = function(id) {
         const profile = state.profiles[state.activePlayer];
         profile.activeQuests = profile.activeQuests.filter(q => q.id !== id);
-        pushProfileToCloud(profile.id);
+        if (typeof pushProfileToCloud === 'function') pushProfileToCloud(profile.id);
         renderEntireViewport();
     };
 
     window.updateCharacterGender = function() {
-        state.profiles[state.activePlayer].gender = document.getElementById("hero-gender-select").value;
-        pushProfileToCloud(state.activePlayer);
+        const sel = document.getElementById("hero-gender-select");
+        if (sel) state.profiles[state.activePlayer].gender = sel.value;
+        if (typeof pushProfileToCloud === 'function') pushProfileToCloud(state.activePlayer);
         renderEntireViewport();
     };
 
     window.updateCharacterClass = function() {
-        state.profiles[state.activePlayer].rpgClass = document.getElementById("hero-class-select").value;
-        pushProfileToCloud(state.activePlayer);
+        const sel = document.getElementById("hero-class-select");
+        if (sel) state.profiles[state.activePlayer].rpgClass = sel.value;
+        if (typeof pushProfileToCloud === 'function') pushProfileToCloud(state.activePlayer);
         renderEntireViewport();
     };
 
     window.changeLedgerPage = function(delta) {
         state.ledgerPage = Math.max(1, state.ledgerPage + delta);
-        renderSummaryTables();
+        if (typeof renderSummaryTables === 'function') renderSummaryTables();
     };
 
     window.changeChroniclePage = function(delta) {
         state.chroniclePage = Math.max(1, state.chroniclePage + delta);
-        renderSummaryTables();
+        if (typeof renderSummaryTables === 'function') renderSummaryTables();
     };
 
     window.updateSummaryFilters = function() {
         state.ledgerPage = 1; state.chroniclePage = 1;
-        renderSummaryTables();
+        if (typeof renderSummaryTables === 'function') renderSummaryTables();
     };
 
     window.triggerLevelUpBreakoutModal = function(levelNum) {
-        document.getElementById("modal-level-text").innerText = `LEVEL ${levelNum}`;
-        document.getElementById("level-up-modal").style.display = "flex";
+        const txt = document.getElementById("modal-level-text");
+        const modal = document.getElementById("level-up-modal");
+        if (txt) txt.innerText = `LEVEL ${levelNum}`;
+        if (modal) modal.style.display = "flex";
     };
 
     window.closeLevelUpModal = function() {
-        document.getElementById("level-up-modal").style.display = "none";
+        const modal = document.getElementById("level-up-modal");
+        if (modal) modal.style.display = "none";
     };
 
     window.wipeEntireEngine = function() {
         if (confirm("🚨 Hard reset this individual player identity block?")) {
             const id = state.activePlayer;
-            state.profiles[id] = createBlankProfile(id, id.charAt(0).toUpperCase() + id.slice(1));
-            pushProfileToCloud(id);
+            if (typeof createBlankProfile === 'function') {
+                state.profiles[id] = createBlankProfile(id, id.charAt(0).toUpperCase() + id.slice(1));
+            }
+            if (typeof pushProfileToCloud === 'function') pushProfileToCloud(id);
             renderEntireViewport();
         }
     };
 }
 
 function renderEntireViewport() {
-    renderCharacterPanel();
-    renderQuestsBoard();
-    renderEnvelopesView();
-    renderSummaryTables();
+    if (typeof renderCharacterPanel === 'function') renderCharacterPanel();
+    if (typeof renderQuestsBoard === 'function') renderQuestsBoard();
+    if (typeof renderEnvelopesView === 'function') renderEnvelopesView();
+    if (typeof renderSummaryTables === 'function') renderSummaryTables();
 }
