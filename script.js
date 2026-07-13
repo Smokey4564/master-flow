@@ -887,7 +887,9 @@ function setupEventHandlers() {
         renderEntireViewport();
     };
 
-    document.getElementById("btn-add-envelope").onclick = function() {
+    const addEnvBtn = document.getElementById("btn-add-envelope");
+if (addEnvBtn) {
+  addEnvBtn.onclick = function() {
         const profile = state.profiles[state.activePlayer];
         const name = document.getElementById("new-envelope-name").value;
         const bal = parseFloat(document.getElementById("new-envelope-balance").value) || 0;
