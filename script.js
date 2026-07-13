@@ -670,58 +670,52 @@ window.getEnvelopeStatus = function(currentBalance, targetAmount, minThreshold) 
     message: "✅ Budget healthy."
   };
 };
-// ✉️ ENVELOPE MANAGER (Edit & Delete Controller)
+// ✉️ ENVELOPE MANAGER (Edit Name, Target, Low-Balance Alert, or Delete)
 window.openEditEnvelopeModal = function(envelopeId) {
   const profile = state.profiles ? state.profiles[state.activePlayer] : null;
-  if (!profile || !profile.envelopes) {
-    console.warn("⚠️ Profile or envelopes array not found in state");
-    return;
-  }
+  if (!profile || !profile.envelopes) return;
 
-  // Find the target envelope inside profile.envelopes array
-  let targetIndex = -1;
-  if (Array.isArray(profile.envelopes)) {
-    targetIndex = profile.envelopes.findIndex(e => (e.id || e.name) === envelopeId);
-  }
-
-  if (targetIndex === -1) {
-    alert("⚠️ Envelope not found!");
-    return;
-  }
+  const targetIndex = profile.envelopes.findIndex(e => (e.id || e.name) === envelopeId);
+  if (targetIndex === -1) { alert("⚠️ Envelope not found!"); return; }
 
   const targetEnv = profile.envelopes[targetIndex];
   const envName = targetEnv.name || "Envelope";
   const envBalance = targetEnv.balance || 0;
+  const envTarget = targetEnv.target || 100;
+  const envMin = targetEnv.minThreshold || 0;
 
-  // Prompt action choice
-  const action = prompt(
-    `✉️ ENVELOPE MANAGER: "${envName}" ($${envBalance.toFixed(2)})\n\nSelect an action:\n[1] Edit Name\n[2] Delete Envelope\n\nType 1 or 2:`,
+  const choice = prompt(
+    `✉️ SETTINGS FOR: "${envName}"\n` +
+    `Current Balance: $${envBalance.toFixed(2)}\n` +
+    `Monthly Target: $${envTarget} | Low-Balance Warning at: $${envMin}\n\n` +
+    `Select an action:\n` +
+    `[1] Edit Envelope Name\n` +
+    `[2] Edit Monthly Target ($)\n` +
+    `[3] Edit Low-Balance Alert Threshold ($)\n` +
+    `[4] Delete Envelope\n\n` +
+    `Type 1, 2, 3, or 4:`,
     "1"
   );
 
-  if (action === "2") {
-    if (confirm(`⚠️ Are you sure you want to delete "${envName}"?`)) {
+  if (choice === "1") {
+    const newName = prompt("Enter new Envelope Name:", envName);
+    if (newName && newName.trim()) targetEnv.name = newName.trim();
+  } else if (choice === "2") {
+    const newTarget = prompt("Enter Monthly Target Amount ($):", envTarget);
+    if (newTarget !== null) targetEnv.target = parseFloat(newTarget) || 0;
+  } else if (choice === "3") {
+    const newMin = prompt("Alert me when balance falls below ($):", envMin);
+    if (newMin !== null) targetEnv.minThreshold = parseFloat(newMin) || 0;
+  } else if (choice === "4") {
+    if (confirm(`⚠️ Delete "${envName}"?`)) {
       profile.envelopes.splice(targetIndex, 1);
-      
-      if (typeof saveStateToCloud === 'function') saveStateToCloud();
-      if (typeof renderEntireViewport === 'function') renderEntireViewport();
-      else if (typeof renderEnvelopesView === 'function') renderEnvelopesView();
-      console.log(`🗑️ Envelope deleted: ${envName}`);
-    }
+    } else { return; }
+  } else {
     return;
   }
 
-  if (action === "1") {
-    const newName = prompt("Enter new Envelope Name:", envName);
-    if (newName === null || newName.trim() === "") return;
-
-    targetEnv.name = newName.trim();
-
-    if (typeof saveStateToCloud === 'function') saveStateToCloud();
-    if (typeof renderEntireViewport === 'function') renderEntireViewport();
-    else if (typeof renderEnvelopesView === 'function') renderEnvelopesView();
-    console.log(`✏️ Envelope updated: ${newName}`);
-  }
+  if (typeof pushProfileToCloud === 'function') pushProfileToCloud(profile.id);
+  if (typeof renderEntireViewport === 'function') renderEntireViewport();
 };
     const chronicleBody = document.getElementById("quest-chronicle-body"); chronicleBody.innerHTML = "";
     if (viewChronicle.length === 0) {
