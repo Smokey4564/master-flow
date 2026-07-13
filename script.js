@@ -760,7 +760,7 @@ function renderEnvelopesView() {
 
     if (!profile.envelopes || !Array.isArray(profile.envelopes)) return;
 
-    // 🎨 Helper for envelope health status (Self-contained)
+    // 🎨 Helper for envelope health status
     const calculateStatus = function(currentBalance, targetAmount, minThreshold) {
         const current = parseFloat(currentBalance) || 0;
         const target = (parseFloat(targetAmount) > 0) ? parseFloat(targetAmount) : 100;
@@ -773,7 +773,7 @@ function renderEnvelopesView() {
         if (percentRemaining <= 15 || distanceToMin <= 25) {
             return {
                 color: "#ef4444",
-                message: `⚠️ Last $${current.toFixed(2)} in this envelope! Spend wisely.`
+                message: `⚠️ Last $${current.toFixed(2)} in envelope! Spend wisely.`
             };
         }
 
@@ -794,32 +794,30 @@ function renderEnvelopesView() {
 
     profile.envelopes.forEach(env => {
         const card = document.createElement("div"); 
-        card.className = "card";
+        // Applying styled card panel matching the rest of the UI
+        card.style.cssText = "background: #18181b; padding: 14px; border-radius: 10px; margin-bottom: 12px; border: 1px solid #27272a; display: flex; flex-direction: column; gap: 6px;";
 
-        // Calculate health status locally
         const targetVal = env.target || 100;
         const status = calculateStatus(env.balance, targetVal, env.minThreshold || 0);
 
-        // Render Card HTML
         card.innerHTML = `
-          <div style="display:flex; flex-direction:column; gap:6px; width:100%;">
-            <div style="display:flex; justify-content:space-between; align-items:center;">
-              <div style="display:flex; align-items:center; gap:8px;">
-                <h3 style="margin:0; font-size:1rem;">${env.name}</h3>
-                <button onclick="openEditEnvelopeModal('${env.id || env.name}')" style="background:none; border:none; cursor:pointer; font-size:0.9rem; padding:0;" title="Edit or Delete">✏️</button>
-              </div>
-              <span style="font-size:1.1rem; font-weight:bold; color:${status.color};">$${env.balance.toFixed(2)}</span>
+          <div style="display:flex; justify-content:space-between; align-items:center;">
+            <div style="display:flex; align-items:center; gap:8px;">
+              <h3 style="margin:0; font-size:1.05rem; color:#ffffff; font-weight:600;">📁 ${env.name}</h3>
+              <button onclick="openEditEnvelopeModal('${env.id || env.name}')" style="background:none; border:none; cursor:pointer; font-size:0.9rem; padding:0; opacity:0.8;" title="Edit or Delete">✏️</button>
             </div>
-            <div style="font-size:0.75rem; color:${status.color}; opacity:0.9;">
-              ${status.message}
-            </div>
+            <span style="font-size:1.15rem; font-weight:bold; color:${status.color};">$${parseFloat(env.balance || 0).toFixed(2)}</span>
+          </div>
+          <div style="display:flex; justify-content:space-between; align-items:center; font-size:0.75rem; opacity:0.85; margin-top:2px;">
+            <span style="color:${status.color};">${status.message}</span>
+            <span style="color:#a1a1aa;">Goal: $${targetVal}</span>
           </div>
         `;
 
         if (stack) stack.appendChild(card);
 
-        // Populate dropdown selectors for transactions
-        const opt = `<option value="${env.id || env.name}">${env.name} ($${env.balance.toFixed(2)})</option>`;
+        // Populate dropdown selectors
+        const opt = `<option value="${env.id || env.name}">${env.name} ($${parseFloat(env.balance || 0).toFixed(2)})</option>`;
         if (transSelect) transSelect.innerHTML += opt;
         if (trfFrom) trfFrom.innerHTML += opt;
         if (trfTo) trfTo.innerHTML += opt;
