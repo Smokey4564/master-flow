@@ -445,12 +445,14 @@ function renderCharacterPanel() {
 function renderQuestsBoard() {
     const profile = state.profiles[state.activePlayer];
     const board = document.getElementById("quests-board");
-    const selectedFilter = document.getElementById("quest-board-filter").value;
-    if (!profile) return;
+    const filterElem = document.getElementById("quest-board-filter");
+    const selectedFilter = filterElem ? filterElem.value : "all";
+    if (!profile || !board) return;
     
     board.innerHTML = "";
     
-    const targetedQuests = profile.activeQuests.filter(q => {
+    const activeQuests = profile.activeQuests || [];
+    const targetedQuests = activeQuests.filter(q => {
         return selectedFilter === "all" ? true : q.category === selectedFilter;
     });
     
@@ -458,17 +460,39 @@ function renderQuestsBoard() {
         board.innerHTML = `<div class="empty-notice" style="text-align:center; padding:20px; color:var(--text-dim);">The Notice Board is clear. No active quests found.</div>`;
         return;
     }
+
+    // 1. CHRONOLOGICAL SORT (Earliest first, Completed float to bottom)
+    targetedQuests.sort((a, b) => {
+        if (a.completed && !b.completed) return 1;
+        if (!a.completed && b.completed) return -1;
+
+        const dateA = new Date(`${a.date || '9999-12-31'}T${a.time || '23:59'}`);
+        const dateB = new Date(`${b.date || '9999-12-31'}T${b.time || '23:59'}`);
+        return dateA - dateB;
+    });
     
+    // 2. RENDER CARDS
     targetedQuests.forEach(quest => {
+        const isCompleted = quest.completed || false;
         const card = document.createElement("div");
         card.className = "quest-card panel";
         card.style.position = "relative";
         card.style.borderLeft = `5px solid ${quest.difficulty === 'epic' ? '#a855f7' : quest.difficulty === 'rare' ? '#3b82f6' : '#22c55e'}`;
         
+        // Strikethrough & dimming styles if completed
+        if (isCompleted) {
+            card.style.opacity = "0.55";
+            card.style.background = "#111113";
+        }
+
+        const titleStyle = isCompleted 
+            ? "margin:0; font-size:1.1rem; text-decoration: line-through; color: var(--text-dim);" 
+            : "margin:0; font-size:1.1rem;";
+        
         card.innerHTML = `
             <div style="display:flex; justify-content:space-between; align-items:start; margin-bottom:8px;">
                 <div>
-                    <h3 style="margin:0; font-size:1.1rem;">${quest.name}</h3>
+                    <h3 style="${titleStyle}">${quest.name}</h3>
                     <span style="font-size:0.75rem; background:#18181b; padding:2px 6px; border-radius:4px; color:var(--text-dim); display:inline-block; margin-top:4px;">${quest.category}</span>
                 </div>
                 <span style="text-transform:uppercase; font-size:0.7rem; font-weight:bold; color:var(--gold);">${quest.difficulty}</span>
@@ -476,14 +500,23 @@ function renderQuestsBoard() {
             <p style="font-size:0.85rem; color:var(--text-dim); margin:5px 0;">📅 Deadline: ${quest.date} ${quest.time || ""}</p>
             ${quest.notes ? `<p style="font-size:0.8rem; padding:6px; background:#18181b; border-radius:4px; color:var(--text-main); margin-bottom:12px;">📝 ${quest.notes}</p>` : ''}
             
-            <div class="hold-container" style="background:#27272a; height:40px; border-radius:6px; position:relative; overflow:hidden; cursor:pointer; display:flex; align-items:center; justify-content:center;">
-                <div class="hold-progress-bar" id="progress-${quest.id}" style="position:absolute; left:0; top:0; height:100%; width:0%; background:linear-gradient(90deg, #ffd700, #4caf50); opacity: 0.4; transition: width 0.1s linear;"></div>
-                <span style="z-index:2; font-size:0.85rem; font-weight:bold; pointer-events:none; color: #fff;">⚔️ HOLD TO COMPLETE QUEST</span>
-            </div>
-            <button onclick="window.abandonQuest('${quest.id}')" style="position:absolute; top:10px; right:10px; background:none; border:none; color:var(--danger); cursor:pointer; font-size:0.9rem;">✖</button>
+            ${!isCompleted ? `
+                <div class="hold-container" style="background:#27272a; height:40px; border-radius:6px; position:relative; overflow:hidden; cursor:pointer; display:flex; align-items:center; justify-content:center;">
+                    <div class="hold-progress-bar" id="progress-${quest.id}" style="position:absolute; left:0; top:0; height:100%; width:0%; background:linear-gradient(90deg, #ffd700, #4caf50); opacity: 0.4; transition: width 0.1s linear;"></div>
+                    <span style="z-index:2; font-size:0.85rem; font-weight:bold; pointer-events:none; color: #fff;">⚔️ HOLD TO COMPLETE QUEST</span>
+                </div>
+            ` : `
+                <div style="background:rgba(34, 197, 94, 0.15); border:1px solid #22c55e; color:#22c55e; height:36px; border-radius:6px; display:flex; align-items:center; justify-content:center; font-weight:bold; font-size:0.85rem;">
+                    ✓ QUEST COMPLETED
+                </div>
+            `}
+
+            <button onclick="window.abandonQuest('${quest.id}')" style="position:absolute; top:10px; right:10px; background:none; border:none; color:var(--danger); cursor:pointer; font-size:0.9rem;" title="Delete Quest">✖</button>
         `;
         
-        bindHoldActionEvents(card.querySelector(".hold-container"), quest.id);
+        if (!isCompleted) {
+            bindHoldActionEvents(card.querySelector(".hold-container"), quest.id);
+        }
         board.appendChild(card);
     });
 }
