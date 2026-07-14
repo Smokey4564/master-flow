@@ -775,17 +775,22 @@ function renderEnvelopesView() {
     const profile = state.profiles ? state.profiles[state.activePlayer] : null; 
     if (!profile) return;
 
+    // 🎯 TARGET ONLY THE ENVELOPES CONTAINER
     const stack = document.getElementById("envelopes-stack");
     const transSelect = document.getElementById("trans-envelope");
     const trfFrom = document.getElementById("transfer-from-select");
     const trfTo = document.getElementById("transfer-to-select");
 
+    // Make sure 'stack' is NOT targeting 'quests-board'!
     if (stack) stack.innerHTML = "";
     if (transSelect) transSelect.innerHTML = "";
     if (trfFrom) trfFrom.innerHTML = "";
     if (trfTo) trfTo.innerHTML = "";
 
     if (!profile.envelopes || !Array.isArray(profile.envelopes)) return;
+    
+    // ... rest of envelope rendering ...
+}
 
     // 🎨 Helper for envelope health status
     const calculateStatus = function(currentBalance, targetAmount, minThreshold) {
