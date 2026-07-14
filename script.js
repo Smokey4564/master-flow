@@ -921,22 +921,44 @@ function setupEventHandlers() {
         };
     }
 
+    // ➕ GLOBAL ENVELOPE CREATION FUNCTION (Matches index.html onclick)
+    window.createNewEnvelope = function() {
+        const profile = state.profiles ? state.profiles[state.activePlayer] : null;
+        if (!profile) return;
+
+        const nameInput = document.getElementById("new-envelope-name");
+        const balInput = document.getElementById("new-envelope-balance");
+
+        const name = nameInput ? nameInput.value.trim() : "";
+        const bal = balInput ? parseFloat(balInput.value) || 0 : 0;
+
+        if (!name) {
+            alert("⚠️ Please enter an envelope name!");
+            return;
+        }
+
+        if (!profile.envelopes) profile.envelopes = [];
+
+        profile.envelopes.push({
+            id: 'env-' + Date.now(),
+            name: name.includes("📂") ? name : `📂 ${name}`,
+            balance: bal,
+            target: 100,
+            minThreshold: 0
+        });
+
+        profile.walletBalance = (profile.walletBalance || 0) + bal;
+
+        if (nameInput) nameInput.value = "";
+        if (balInput) balInput.value = "";
+
+        if (typeof pushProfileToCloud === 'function') pushProfileToCloud(profile.id);
+        renderEntireViewport();
+    };
+
     const addEnvBtn = document.getElementById("btn-add-envelope");
     if (addEnvBtn) {
-        addEnvBtn.onclick = function() {
-            const profile = state.profiles[state.activePlayer];
-            const name = document.getElementById("new-envelope-name").value;
-            const bal = parseFloat(document.getElementById("new-envelope-balance").value) || 0;
-            if (!name) return;
-            
-            profile.envelopes.push({ id: 'env-' + Date.now(), name: "📂 " + name, balance: bal });
-            profile.walletBalance += bal;
-            
-            document.getElementById("new-envelope-name").value = "";
-            document.getElementById("new-envelope-balance").value = "";
-            if (typeof pushProfileToCloud === 'function') pushProfileToCloud(profile.id);
-            renderEntireViewport();
-        }; // <--- PROPERLY CLOSED HERE NOW!
+        addEnvBtn.onclick = window.createNewEnvelope;
     }
 
     window.executeEnvelopeTransfer = function() {
