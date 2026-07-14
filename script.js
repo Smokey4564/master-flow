@@ -781,16 +781,12 @@ function renderEnvelopesView() {
     const trfFrom = document.getElementById("transfer-from-select");
     const trfTo = document.getElementById("transfer-to-select");
 
-    // Make sure 'stack' is NOT targeting 'quests-board'!
     if (stack) stack.innerHTML = "";
     if (transSelect) transSelect.innerHTML = "";
     if (trfFrom) trfFrom.innerHTML = "";
     if (trfTo) trfTo.innerHTML = "";
 
     if (!profile.envelopes || !Array.isArray(profile.envelopes)) return;
-    
-    // ... rest of envelope rendering ...
-}
 
     // 🎨 Helper for envelope health status
     const calculateStatus = function(currentBalance, targetAmount, minThreshold) {
@@ -826,7 +822,6 @@ function renderEnvelopesView() {
 
     profile.envelopes.forEach(env => {
         const card = document.createElement("div"); 
-        // Applying styled card panel matching the rest of the UI
         card.style.cssText = "background: #18181b; padding: 14px; border-radius: 10px; margin-bottom: 12px; border: 1px solid #27272a; display: flex; flex-direction: column; gap: 6px;";
 
         const targetVal = env.target || 100;
@@ -836,7 +831,7 @@ function renderEnvelopesView() {
           <div style="display:flex; justify-content:space-between; align-items:center;">
             <div style="display:flex; align-items:center; gap:8px;">
               <h3 style="margin:0; font-size:1.05rem; color:#ffffff; font-weight:600;">📁 ${env.name}</h3>
-              <button onclick="openEditEnvelopeModal('${env.id || env.name}')" style="background:none; border:none; cursor:pointer; font-size:0.9rem; padding:0; opacity:0.8;" title="Edit or Delete">✏️</button>
+              <button onclick="window.openEditEnvelopeModal('${env.id || env.name}')" style="background:none; border:none; cursor:pointer; font-size:0.9rem; padding:0; opacity:0.8;" title="Edit or Delete">✏️</button>
             </div>
             <span style="font-size:1.15rem; font-weight:bold; color:${status.color};">$${parseFloat(env.balance || 0).toFixed(2)}</span>
           </div>
@@ -854,7 +849,7 @@ function renderEnvelopesView() {
         if (trfFrom) trfFrom.innerHTML += opt;
         if (trfTo) trfTo.innerHTML += opt;
     });
-}
+} // <-- This correctly closes renderEnvelopesView!
 
 // ==========================================
 // ⚙️ INTERACTIVE ROUTING EVENTS CONTROL
