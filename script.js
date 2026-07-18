@@ -865,11 +865,19 @@ function setupEventHandlers() {
         state.activeTab = tabId;
         document.querySelectorAll(".page").forEach(p => p.classList.remove("active"));
         document.querySelectorAll(".tab-btn").forEach(b => b.classList.remove("active"));
+        
         const targetTab = document.getElementById(tabId);
         if (targetTab) targetTab.classList.add("active");
+        
         const btnNode = Array.from(document.querySelectorAll(".tab-btn")).find(b => b.getAttribute("onclick")?.includes(tabId));
         if (btnNode) btnNode.classList.add("active");
+
+        // 🛑 THE FIX: Force the UI to evaluate boundaries right when the tab changes!
+        if (typeof renderEnvelopesView === "function") {
+            renderEnvelopesView();
+        }
     };
+}
 
     window.switchPlayerProfile = function() {
         const sel = document.getElementById("global-player-select");
