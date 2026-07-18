@@ -781,6 +781,10 @@ function renderEnvelopesView() {
     const trfFrom = document.getElementById("transfer-from-select");
     const trfTo = document.getElementById("transfer-to-select");
 
+    // 🛑 LEAK GUARD: If the envelope stack container is missing or hidden, 
+    // only populate dropdown selectors in the background and gracefully exit.
+    const isWalletTabVisible = stack && (stack.offsetWidth > 0 || stack.offsetHeight > 0 || window.getComputedStyle(stack).display !== "none");
+
     if (stack) stack.innerHTML = "";
     if (transSelect) transSelect.innerHTML = "";
     if (trfFrom) trfFrom.innerHTML = "";
@@ -821,35 +825,37 @@ function renderEnvelopesView() {
     };
 
     profile.envelopes.forEach(env => {
-        const card = document.createElement("div"); 
-        card.style.cssText = "background: #18181b; padding: 14px; border-radius: 10px; margin-bottom: 12px; border: 1px solid #27272a; display: flex; flex-direction: column; gap: 6px;";
+        // 1. Only build visual HTML cards if the wallet tab view is actually open/visible
+        if (isWalletTabVisible && stack) {
+            const card = document.createElement("div"); 
+            card.style.cssText = "background: #18181b; padding: 14px; border-radius: 10px; margin-bottom: 12px; border: 1px solid #27272a; display: flex; flex-direction: column; gap: 6px;";
 
-        const targetVal = env.target || 100;
-        const status = calculateStatus(env.balance, targetVal, env.minThreshold || 0);
+            const targetVal = env.target || 100;
+            const status = calculateStatus(env.balance, targetVal, env.minThreshold || 0);
 
-        card.innerHTML = `
-          <div style="display:flex; justify-content:space-between; align-items:center;">
-            <div style="display:flex; align-items:center; gap:8px;">
-              <h3 style="margin:0; font-size:1.05rem; color:#ffffff; font-weight:600;">📁 ${env.name}</h3>
-              <button onclick="window.openEditEnvelopeModal('${env.id || env.name}')" style="background:none; border:none; cursor:pointer; font-size:0.9rem; padding:0; opacity:0.8;" title="Edit or Delete">✏️</button>
-            </div>
-            <span style="font-size:1.15rem; font-weight:bold; color:${status.color};">$${parseFloat(env.balance || 0).toFixed(2)}</span>
-          </div>
-          <div style="display:flex; justify-content:space-between; align-items:center; font-size:0.75rem; opacity:0.85; margin-top:2px;">
-            <span style="color:${status.color};">${status.message}</span>
-            <span style="color:#a1a1aa;">Goal: $${targetVal}</span>
-          </div>
-        `;
+            card.innerHTML = `
+              <div style="display:flex; justify-content:space-between; align-items:center;">
+                <div style="display:flex; align-items:center; gap:8px;">
+                  <h3 style="margin:0; font-size:1.05rem; color:#ffffff; font-weight:600;">📁 ${env.name}</h3>
+                  <button onclick="window.openEditEnvelopeModal('${env.id || env.name}')" style="background:none; border:none; cursor:pointer; font-size:0.9rem; padding:0; opacity:0.8;" title="Edit or Delete">✏️</button>
+                </div>
+                <span style="font-size:1.15rem; font-weight:bold; color:${status.color};">$${parseFloat(env.balance || 0).toFixed(2)}</span>
+              </div>
+              <div style="display:flex; justify-content:space-between; align-items:center; font-size:0.75rem; opacity:0.85; margin-top:2px;">
+                <span style="color:${status.color};">${status.message}</span>
+                <span style="color:#a1a1aa;">Goal: $${targetVal}</span>
+              </div>
+            `;
+            stack.appendChild(card);
+        }
 
-        if (stack) stack.appendChild(card);
-
-        // Populate dropdown selectors
+        // 2. ALWAYS safely populate dropdown selectors regardless of what tab we are looking at
         const opt = `<option value="${env.id || env.name}">${env.name} ($${parseFloat(env.balance || 0).toFixed(2)})</option>`;
         if (transSelect) transSelect.innerHTML += opt;
         if (trfFrom) trfFrom.innerHTML += opt;
         if (trfTo) trfTo.innerHTML += opt;
     });
-} // <-- This correctly closes renderEnvelopesView!
+}
 
 // ==========================================
 // ⚙️ INTERACTIVE ROUTING EVENTS CONTROL
