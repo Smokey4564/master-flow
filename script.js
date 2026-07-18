@@ -783,7 +783,8 @@ function renderEnvelopesView() {
 
     // 🛑 LEAK GUARD: If the envelope stack container is missing or hidden, 
     // only populate dropdown selectors in the background and gracefully exit.
-    const isWalletTabVisible = stack && (stack.offsetWidth > 0 || stack.offsetHeight > 0 || window.getComputedStyle(stack).display !== "none");
+   // 🔄 Replace your old visibility check with this state-driven guard:
+const isWalletTabVisible = (state.activeTab === "wallet");
 
     if (stack) stack.innerHTML = "";
     if (transSelect) transSelect.innerHTML = "";
