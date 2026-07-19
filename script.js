@@ -5,37 +5,26 @@
 
 // import modules dynamically from the CDN network pipeline
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-import { getFirestore, doc, setDoc, onSnapshot, getDoc, collection, query, where } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+import { getFirestore, doc, setDoc, onSnapshot, runTransaction, collection, query, where } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
-// ==========================================
-// 🔐 FIREBASE CLOUD CONFIGURATION INTERFACE
-// ==========================================
-// PASTE YOUR WEBPAGE APP CREDENTIALS FROM FIREBASE CONSOLE HERE:
-// For Firebase JS SDK v7.20.0 and later, measurementId is optional
-const firebaseConfig = {
-  apiKey: "AIzaSyDD4FGcNxHJT7wDh3hPMqudUYzEmDz8lbw",
-  authDomain: "master-flow-d9d4b.firebaseapp.com",
-  projectId: "master-flow-d9d4b",
-  storageBucket: "master-flow-d9d4b.firebasestorage.app",
-  messagingSenderId: "716546159295",
-  appId: "1:716546159295:web:ae13d55413b31debd2cc0a",
-  measurementId: "G-YHC9KZNQ2N"
-};
+// Project credentials live in their own file so this one holds only app logic
+import { firebaseConfig } from "./firebase-config.js";
 
 // Initialize Firebase Core Engines
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 
 // Global App State Machine
+// activePlayer and currentHouseholdId stay null until the gatekeeper loads them from this
+// device's localStorage (or onboarding creates them). Never hardcode an identity here —
+// a baked-in default silently points a brand new user at somebody else's household.
 let state = {
-  activePlayer: 'angel',
-  currentHouseholdId: 'OYfoVvk62io4l9lZxm0g', // 👈 Add this line right here!
+  activePlayer: null,
+  currentHouseholdId: null,
   activeTab: 'quests',
   walletMode: 'spend',
-  questPage: 1,
   ledgerPage: 1,
   chroniclePage: 1,
-  rowsPerPage: 5,
   profiles: {}
 };
 // RPG Class Title Matrix matching Gender Expression & Level Milestone Evolution
@@ -96,6 +85,158 @@ const ATTR_MAP = {
     "💅 Personal Care": "Wisdom (WIS)",
     "🎯 Personal Habit": "Constitution (CON)"
 };
+
+// ==========================================
+// ⚖️ GAME BALANCE & APP TUNING
+// ==========================================
+// Every tunable number lives here instead of being scattered through the logic, so balance
+// can be adjusted in one place without hunting through render and resolution code.
+const BALANCE = {
+    XP_PER_LEVEL: 100,          // XP needed to clear one level
+    EVOLUTION_LEVEL: 10,        // level at which class titles upgrade to their evolved form
+
+    // Quest payouts by difficulty tier
+    QUEST_REWARDS: {
+        common: { xp: 25,  gold: 10 },
+        rare:   { xp: 60,  gold: 25 },
+        epic:   { xp: 120, gold: 50 }
+    },
+
+    // Per-class payout multipliers (anything omitted simply pays 1x)
+    CLASS_BONUSES: {
+        mage:    { xp: 1.2 },
+        rogue:   { gold: 1.2 },
+        ranger:  { xp: 1.15 },
+        warrior: { xp: 1.1, gold: 1.1 }
+    },
+
+    HOLD_TO_COMPLETE_MS: 1000,  // how long a quest card must be held before it resolves
+    HOLD_TICK_MS: 100,          // progress-bar refresh rate during the hold
+    STREAK_SHIELD_EVERY: 7,     // a shield is granted every N quests in a row
+    STREAK_PENALTY_MULTIPLIER: 0.8, // attributes keep this fraction when a streak breaks
+    ROWS_PER_PAGE: 5,           // ledger / chronicle table page size
+
+    // A whole profile lives in ONE Firestore document, and those cap out at 1 MiB. History
+    // arrays only ever grow, so without a ceiling the document eventually exceeds the limit
+    // and every save starts failing — not just history, but gold, quests and balances too.
+    // These caps keep the newest entries and drop the oldest tail.
+    MAX_LEDGER_ENTRIES: 500,
+    MAX_CHRONICLE_ENTRIES: 500
+};
+
+// Envelope health thresholds and defaults
+const ENVELOPE_DEFAULTS = {
+    TARGET: 100,          // monthly goal assumed when none is set
+    MIN_THRESHOLD: 0,
+    DANGER_PERCENT: 15,   // at or below this % of target -> red
+    DANGER_BUFFER: 25,    // ...or this close to the min threshold in dollars
+    CAUTION_PERCENT: 30   // at or below this % of target -> amber
+};
+
+// Envelopes every brand new profile starts with
+const STARTER_ENVELOPES = [
+    { id: "env-general", name: "🍔 General Expenses", balance: 0.00 },
+    { id: "env-savings", name: "🏦 Iron Bank Savings", balance: 0.00 }
+];
+
+// ==========================================
+// 🛡️ SAFE TEXT RENDERING HELPER
+// ==========================================
+// Anything a player types (quest names, memos, envelope names) is shared with the whole
+// household through Firestore. Pasting it straight into innerHTML would let one person's
+// text run as code in everyone else's browser, so every value gets neutralized first.
+function escapeHtml(value) {
+    if (value === null || value === undefined) return "";
+    return String(value)
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#39;");
+}
+
+// ==========================================
+// 🧮 PROFILE HELPERS
+// ==========================================
+
+// 💰 The wallet total is DERIVED, never stored as a running tally. Keeping a separate
+// counter in sync with the envelopes was a standing source of drift — one missed update
+// (deleting a funded envelope, say) left a phantom balance that never self-corrected.
+function getWalletTotal(profile) {
+    if (!profile || !Array.isArray(profile.envelopes)) return 0;
+    return profile.envelopes.reduce((sum, env) => sum + (parseFloat(env.balance) || 0), 0);
+}
+
+// ✂️ Keep the newest history and drop the oldest tail, so the profile document stays
+// comfortably under Firestore's 1 MiB per-document ceiling.
+function trimProfileHistory(profile) {
+    if (!profile) return;
+    if (Array.isArray(profile.walletLedger) && profile.walletLedger.length > BALANCE.MAX_LEDGER_ENTRIES) {
+        const dropped = profile.walletLedger.length - BALANCE.MAX_LEDGER_ENTRIES;
+        profile.walletLedger = profile.walletLedger.slice(0, BALANCE.MAX_LEDGER_ENTRIES);
+        console.warn(`✂️ Trimmed ${dropped} oldest wallet entries to stay under the document size limit.`);
+    }
+    if (Array.isArray(profile.questChronicle) && profile.questChronicle.length > BALANCE.MAX_CHRONICLE_ENTRIES) {
+        const dropped = profile.questChronicle.length - BALANCE.MAX_CHRONICLE_ENTRIES;
+        profile.questChronicle = profile.questChronicle.slice(0, BALANCE.MAX_CHRONICLE_ENTRIES);
+        console.warn(`✂️ Trimmed ${dropped} oldest quest archives to stay under the document size limit.`);
+    }
+}
+
+// 📴 LOCAL SAFETY NET
+// The app writes a copy of each profile to this device. It used to be written and never read,
+// so "operating on backup" was a claim the code couldn't actually honour. These two functions
+// make it real: written on every local change, read back when the cloud can't be reached.
+function writeLocalBackup(id) {
+    try {
+        if (state.profiles[id]) {
+            localStorage.setItem(`masterflow_backup_${id}`, JSON.stringify(state.profiles[id]));
+        }
+    } catch (err) {
+        console.warn("⚠️ Could not write local backup (storage full or blocked):", err);
+    }
+}
+
+// Returns true if a usable backup was loaded into state.
+function hydrateFromLocalBackup(id) {
+    if (!id) return false;
+    try {
+        const raw = localStorage.getItem(`masterflow_backup_${id}`);
+        if (!raw) return false;
+        state.profiles[id] = normalizeProfile(JSON.parse(raw), id);
+        console.log("📴 Restored profile from this device's local backup:", id);
+        return true;
+    } catch (err) {
+        console.warn("⚠️ Local backup unreadable, ignoring it:", err);
+        return false;
+    }
+}
+
+// 🩹 Older documents predate some fields. Fill the gaps on load so a missing value can't
+// crash a render (profile.walletBalance.toFixed on undefined, for one).
+function normalizeProfile(profile, fallbackId) {
+    if (!profile || typeof profile !== 'object') return createBlankProfile(fallbackId, fallbackId);
+    const blank = createBlankProfile(profile.id || fallbackId, profile.name || fallbackId);
+
+    for (const key of Object.keys(blank)) {
+        if (profile[key] === undefined || profile[key] === null) profile[key] = blank[key];
+    }
+    if (!Array.isArray(profile.envelopes)) profile.envelopes = blank.envelopes;
+    if (!Array.isArray(profile.activeQuests)) profile.activeQuests = [];
+    if (!Array.isArray(profile.walletLedger)) profile.walletLedger = [];
+    if (!Array.isArray(profile.questChronicle)) profile.questChronicle = [];
+    if (!profile.attributes || typeof profile.attributes !== 'object') {
+        profile.attributes = { ...BASE_ATTRIBUTES };
+    } else {
+        // a newly added attribute shouldn't render as blank on an old profile
+        for (const key of Object.keys(BASE_ATTRIBUTES)) {
+            if (typeof profile.attributes[key] !== 'number') profile.attributes[key] = BASE_ATTRIBUTES[key];
+        }
+    }
+    if (!CLASS_MATRIX[profile.rpgClass]) profile.rpgClass = blank.rpgClass;
+    if (profile.gender !== 'male' && profile.gender !== 'female') profile.gender = blank.gender;
+    return profile;
+}
 
 // ==========================================
 // 🎵 AUDIO SYNTHESIZER SYSTEM ENGINE
@@ -207,9 +348,19 @@ async function executeHeroOnboarding() {
 // ==========================================
 // ⚡ COMPREHENSIVE CLOUD DATA PIPELINE
 // ==========================================
+// Handle for the live Firestore listener so we never stack two of them on top of each other
+let activeSyncUnsubscribe = null;
+
 // 🌐 MULTI-HOUSEHOLD LIVE STREAM SYNCHRONIZATION PIPELINE
 function initializeCloudSync() {
   const statusEl = document.getElementById("cloud-status");
+
+  // Drop any listener from a previous call before opening a new one. Without this, every
+  // re-sync would add another permanent subscription — duplicate renders and duplicate reads.
+  if (activeSyncUnsubscribe) {
+    activeSyncUnsubscribe();
+    activeSyncUnsubscribe = null;
+  }
   
   // 🛡️ STRICT HOUSEHOLD ISOLATION LOCK
   const targetHousehold = state.currentHouseholdId;
@@ -230,6 +381,13 @@ function initializeCloudSync() {
     statusEl.innerText = `⏳ Scanning House: ${targetHousehold}`;
   }
 
+  // Paint immediately from this device's last known good copy, so a slow or unreachable
+  // network shows your data instead of an empty shell. The live snapshot overwrites it
+  // moments later when it arrives.
+  if (hydrateFromLocalBackup(state.activePlayer)) {
+    renderEntireViewport();
+  }
+
   try {
     // Query Firestore for documents matching the household ID
     const q = query(
@@ -237,21 +395,22 @@ function initializeCloudSync() {
       where("household_id", "==", targetHousehold)
     );
 
-    // Bind live snapshot listener
-    onSnapshot(q, (querySnapshot) => {
+    // Bind live snapshot listener (keeping the handle so it can be torn down later)
+    activeSyncUnsubscribe = onSnapshot(q, (querySnapshot) => {
       // Clear out old memory tracking to prepare for fresh household data
       state.profiles = {};
 
       if (!querySnapshot.empty) {
         querySnapshot.forEach((docSnap) => {
-          const playerId = docSnap.id; 
-          state.profiles[playerId] = docSnap.data();
+          const playerId = docSnap.id;
+          // Backfill anything an older document is missing before the UI touches it
+          state.profiles[playerId] = normalizeProfile(docSnap.data(), playerId);
         });
 
         // Set our active profile pointer safely from the newly streamed data
         const id = state.activePlayer;
         if (state.profiles[id]) {
-          localStorage.setItem(`masterflow_backup_${id}`, JSON.stringify(state.profiles[id]));
+          writeLocalBackup(id);
           if (typeof runStreakCalendarAudit === 'function') {
             runStreakCalendarAudit();
           }
@@ -276,48 +435,94 @@ function initializeCloudSync() {
         renderApp();
       }
     }, (error) => {
+      // The live listener dropped (offline, permission denied, project unreachable).
+      // Fall back to this device's copy rather than leaving the user staring at nothing.
       console.error("Pipeline link failure: ", error);
-      if (statusEl) statusEl.innerText = "🔴 Sync Disconnected";
+      const restored = hydrateFromLocalBackup(state.activePlayer);
+      if (restored) renderEntireViewport();
+      if (statusEl) {
+        statusEl.innerText = restored
+          ? "📴 Offline — showing this device's saved copy"
+          : "🔴 Sync Disconnected";
+      }
     });
 
   } catch (err) {
     console.error("Failed to construct query pipeline: ", err);
   }
 }
-// 2. The Dropdown Selection Switcher Block (Keep this separate right below!)
-function handlePlayerChange() {
-    state.activePlayer = document.getElementById("global-player-select").value || 'angel';
-    initializeCloudSync();
-    renderEntireViewport();
+/**
+ * 💾 Apply a change to a profile and persist it WITHOUT clobbering concurrent edits.
+ *
+ * The old approach mutated the local profile and then overwrote the whole document with it.
+ * If a teammate (or a second tab) saved in between, their change was silently destroyed.
+ * Here the same change is re-applied on top of whatever the server currently holds, inside a
+ * transaction, so both edits survive.
+ *
+ * ⚠️ `mutate(profile)` runs TWICE — once on the local copy for an instant UI update, and
+ * again on the fresh server copy. It must therefore ONLY touch profile data:
+ *   - no DOM, no sounds, no alerts (do those in the caller, using the returned outcome)
+ *   - no Date.now() / Math.random() inside; generate those in the caller and close over them,
+ *     otherwise the two runs produce different ids and timestamps
+ *   - look items up by id rather than by array index, since the server ordering may differ
+ * Returns whatever mutate() returned from the local run.
+ */
+async function saveProfileChange(id, mutate) {
+  const local = state.profiles[id];
+  if (!local) {
+    console.warn("⚠️ Save skipped: no profile loaded for", id);
+    return null;
+  }
+
+  // 1. Apply locally first so the interface responds immediately
+  const outcome = mutate(local);
+  trimProfileHistory(local);
+  renderEntireViewport();
+
+  // Save the backup HERE, not just after a successful cloud write — otherwise a change made
+  // offline is lost on reload, which is the exact moment the backup is supposed to matter.
+  writeLocalBackup(id);
+
+  const targetHousehold = state.currentHouseholdId;
+  if (!targetHousehold) {
+    console.warn("⚠️ Save skipped: no household registered on this device yet.");
+    return outcome;
+  }
+
+  const statusEl = document.getElementById("cloud-status");
+  try {
+    const docRef = doc(db, "household_leaderboard", id);
+
+    await runTransaction(db, async (tx) => {
+      const snap = await tx.get(docRef);
+
+      // 2. Replay the change onto the freshest server state. If the document doesn't exist
+      //    yet, the already-mutated local copy is the starting point.
+      const merged = snap.exists() ? normalizeProfile(snap.data(), id) : { ...local };
+      if (snap.exists()) mutate(merged);
+
+      trimProfileHistory(merged);
+      merged.id = id;
+      merged.household_id = targetHousehold;
+      merged.walletBalance = getWalletTotal(merged); // convenience mirror of the envelope sum
+
+      tx.set(docRef, merged);
+    });
+
+    writeLocalBackup(id);
+    if (statusEl) statusEl.innerText = "🟢 Cloud Matrix Synchronized Securely";
+  } catch (err) {
+    // Be blunt about what actually happens: the change lives on this device so you can keep
+    // working, but there is no write queue — when the cloud reconnects, its copy wins and
+    // this edit is dropped. Saying "will re-sync" would be a promise the code can't keep.
+    console.error("Cloud push failed: ", err);
+    if (statusEl) statusEl.innerText = "📴 Offline — shown on this device only; the cloud copy wins on reconnect";
+  }
+  return outcome;
 }
 
-async function pushProfileToCloud(id) {
-  const targetHousehold = state.currentHouseholdId || 'OYfoVvk62io4l9lZxm0g';
-  
-  try {
-    // Target the exact user document inside your actual collection
-    const docRef = doc(db, "household_leaderboard", id);
-    
-    // Grab your current profile data state object
-    const profileData = { ...state.profiles[id] };
-    
-    // 🛡️ Safety Enforcement: Ensure the household token field is locked into the document
-    profileData.household_id = targetHousehold;
-    
-    // Overwrite the document cleanly with our updated state profile values
-    await setDoc(docRef, profileData);
-    
-    localStorage.setItem(`masterflow_backup_${id}`, JSON.stringify(state.profiles[id]));
-    
-    const statusEl = document.getElementById("cloud-status");
-    if (statusEl) statusEl.innerText = "🟢 Cloud Matrix Synchronized Securely";
-    console.log(`📡 Saved straight to household_leaderboard/${id} for house: ${targetHousehold}`);
-  } catch (err) {
-    console.error("Cloud push failed: ", err);
-    const statusEl = document.getElementById("cloud-status");
-    if (statusEl) statusEl.innerText = "📴 Operating via Local Safety Backup Drive";
-  }
-}
+// (pushProfileToCloud used to live here — it overwrote the whole document on every save,
+//  which is what destroyed concurrent edits. saveProfileChange above replaces it.)
 
 function createBlankProfile(id, structuralName) {
     return {
@@ -335,10 +540,7 @@ function createBlankProfile(id, structuralName) {
         lastCheckInDate: "",
         attributePenaltyActive: false,
         attributes: { ...BASE_ATTRIBUTES },
-        envelopes: [
-            { id: "env-general", name: "🍔 General Expenses", balance: 0.00 },
-            { id: "env-savings", name: "🏦 Iron Bank Savings", balance: 0.00 }
-        ],
+        envelopes: STARTER_ENVELOPES.map(env => ({ ...env })), // copy, so profiles never share objects
         activeQuests: [],
         walletLedger: [],
         questChronicle: []
@@ -349,53 +551,118 @@ function runStreakCalendarAudit() {
     const profile = state.profiles[state.activePlayer];
     if (!profile) return;
     const todayStr = new Date().toLocaleDateString();
-    
+
     if (profile.lastCheckInDate === todayStr) return;
-    
+
+    // Work out what the miss costs BEFORE saving, so the change we persist is a set of
+    // absolute values. Re-running this decision against the server copy could double-charge
+    // a shield if the two copies disagreed about the last check-in.
+    let shieldUsed = false;
+    let streakBroken = false;
+
     if (profile.lastCheckInDate !== "") {
         const today = new Date(); today.setHours(0,0,0,0);
         const lastCheck = new Date(profile.lastCheckInDate); lastCheck.setHours(0,0,0,0);
         const diffDays = Math.ceil(Math.abs(today - lastCheck) / (1000 * 60 * 60 * 24));
-        
+
         if (diffDays > 1) {
-            if (profile.streakShields > 0) {
-                profile.streakShields--;
-                alert(`⚠️ Warning! A day slipped past, but your Streak Shield absorbed the penalty! (${profile.streakShields} remaining)`);
-            } else {
-                profile.streakCount = 0;
-                profile.attributePenaltyActive = true;
-                applyHeavyAttributePenalty(profile);
-                alert("💔 STREAK SHATTERED! You skipped active goals without a shield. Stats reduced by 20% until your next quest victory!");
-            }
+            if (profile.streakShields > 0) shieldUsed = true;
+            else streakBroken = true;
         }
     }
-    profile.lastCheckInDate = todayStr;
-    pushProfileToCloud(profile.id);
+
+    // Snapshot the resulting values off the local profile...
+    const preview = { ...profile, attributes: { ...profile.attributes } };
+    if (shieldUsed) preview.streakShields = Math.max(0, preview.streakShields - 1);
+    if (streakBroken) {
+        preview.streakCount = 0;
+        preview.attributePenaltyActive = true;
+        applyHeavyAttributePenalty(preview);
+    }
+
+    // ...then write those absolute values, which are safe to apply to either copy.
+    saveProfileChange(profile.id, p => {
+        p.streakShields = preview.streakShields;
+        p.streakCount = preview.streakCount;
+        p.attributePenaltyActive = preview.attributePenaltyActive;
+        p.attributes = { ...preview.attributes };
+        if (preview.attributesBeforePenalty) p.attributesBeforePenalty = { ...preview.attributesBeforePenalty };
+        p.lastCheckInDate = todayStr;
+    });
+
+    if (shieldUsed) alert(`⚠️ Warning! A day slipped past, but your Streak Shield absorbed the penalty! (${preview.streakShields} remaining)`);
+    if (streakBroken) alert("💔 STREAK SHATTERED! You skipped active goals without a shield. Stats reduced by 20% until your next quest victory!");
 }
 
 function applyHeavyAttributePenalty(profile) {
+    // Stash exactly what the player had earned so victory can hand it all back later.
+    profile.attributesBeforePenalty = { ...profile.attributes };
+
+    // Take 20% off the CURRENT value. Recomputing from BASE + level would silently throw away
+    // every attribute point earned from completed quests.
     for (let key in profile.attributes) {
-        profile.attributes[key] = Math.max(1, Math.floor((BASE_ATTRIBUTES[key] + (profile.level - 1)) * 0.8));
+        profile.attributes[key] = Math.max(1, Math.floor(profile.attributes[key] * BALANCE.STREAK_PENALTY_MULTIPLIER));
     }
 }
 
+// Returns true when a penalty was actually lifted, so the caller can announce it.
+// (No alert in here — this runs inside a save mutation, which executes twice.)
 function restoreAttributesFromVictory(profile) {
-    if (!profile.attributePenaltyActive) return;
+    if (!profile.attributePenaltyActive) return false;
     profile.attributePenaltyActive = false;
-    for (let key in profile.attributes) {
-        profile.attributes[key] = BASE_ATTRIBUTES[key] + (profile.level - 1);
+
+    // Put back the pre-penalty snapshot so quest-earned progress survives the streak break.
+    const banked = profile.attributesBeforePenalty;
+    if (banked) {
+        for (let key in profile.attributes) {
+            if (banked[key] !== undefined) profile.attributes[key] = banked[key];
+        }
+        delete profile.attributesBeforePenalty;
+    } else {
+        // Older profiles penalized before this fix have no snapshot — undo the 20% cut as best we can.
+        for (let key in profile.attributes) {
+            profile.attributes[key] = Math.max(BASE_ATTRIBUTES[key], Math.round(profile.attributes[key] / BALANCE.STREAK_PENALTY_MULTIPLIER));
+        }
     }
-    alert("✨ Grace Restored! Your core attributes have returned to optimal values.");
+    return true;
 }
 
 // ==========================================
 // ⚔️ RPG ENGINE CORE & RENDERING VISUALS
 // ==========================================
+// 👥 Rebuild the hero switcher from whoever is actually in this household.
+// The roster used to be two hardcoded <option> tags, so a household whose members weren't
+// named angel/brianna could never select their own profile.
+function renderPlayerRoster() {
+    const sel = document.getElementById("global-player-select");
+    if (!sel) return;
+
+    const ids = Object.keys(state.profiles);
+    if (ids.length === 0) { sel.innerHTML = ""; return; }
+
+    // Alphabetical by display name so the list doesn't reshuffle on every snapshot
+    ids.sort((a, b) => {
+        const nameA = (state.profiles[a].name || a).toLowerCase();
+        const nameB = (state.profiles[b].name || b).toLowerCase();
+        return nameA.localeCompare(nameB);
+    });
+
+    sel.innerHTML = ids.map(id => {
+        const label = state.profiles[id].name || id;
+        return `<option value="${escapeHtml(id)}">${escapeHtml(label)}</option>`;
+    }).join("");
+
+    // Keep the active hero selected across re-renders
+    if (state.activePlayer && ids.includes(state.activePlayer)) {
+        sel.value = state.activePlayer;
+    }
+}
+
 function renderCharacterPanel() {
     const profile = state.profiles[state.activePlayer];
     if (!profile) return;
     
-    const evolutionTier = profile.level >= 10 ? "evolved" : "base";
+    const evolutionTier = profile.level >= BALANCE.EVOLUTION_LEVEL ? "evolved" : "base";
     const classData = CLASS_MATRIX[profile.rpgClass];
     const identityTitle = classData[profile.gender][evolutionTier];
     
@@ -407,9 +674,9 @@ function renderCharacterPanel() {
     document.getElementById("hero-gender-select").value = profile.gender;
     document.getElementById("hero-class-select").value = profile.rpgClass;
     
-    const xpPercent = Math.min(100, (profile.xp / 100) * 100);
+    const xpPercent = Math.min(100, (profile.xp / BALANCE.XP_PER_LEVEL) * 100);
     document.getElementById("render-xp-bar").style.width = `${xpPercent}%`;
-    document.getElementById("render-xp-text").innerText = `${profile.xp} / 100 XP`;
+    document.getElementById("render-xp-text").innerText = `${profile.xp} / ${BALANCE.XP_PER_LEVEL} XP`;
     
     document.getElementById("stat-hp").innerText = classData.stats.hp + (profile.level * 10);
     document.getElementById("stat-mp").innerText = classData.stats.mp + (profile.level * 5);
@@ -438,7 +705,7 @@ function renderCharacterPanel() {
     }
     document.getElementById("attributes-display").innerHTML = attrHtml;
     
-    document.getElementById("top-wallet").innerText = `💰 $${profile.walletBalance.toFixed(2)}`;
+    document.getElementById("top-wallet").innerText = `💰 $${getWalletTotal(profile).toFixed(2)}`;
     document.getElementById("top-gold").innerText = `🪙 ${profile.gold} Gold`;
 }
 
@@ -461,11 +728,10 @@ function renderQuestsBoard() {
         return;
     }
 
-    // 1. CHRONOLOGICAL SORT (Earliest first, Completed float to bottom)
+    // 1. CHRONOLOGICAL SORT (earliest deadline first)
+    // Note: the board only ever holds ACTIVE quests — completing one moves it straight to
+    // questChronicle, so there is no "completed" state to sort to the bottom.
     targetedQuests.sort((a, b) => {
-        if (a.completed && !b.completed) return 1;
-        if (!a.completed && b.completed) return -1;
-
         const dateA = new Date(`${a.date || '9999-12-31'}T${a.time || '23:59'}`);
         const dateB = new Date(`${b.date || '9999-12-31'}T${b.time || '23:59'}`);
         return dateA - dateB;
@@ -473,50 +739,38 @@ function renderQuestsBoard() {
     
     // 2. RENDER CARDS
     targetedQuests.forEach(quest => {
-        const isCompleted = quest.completed || false;
+        // Deadline already passed? style.css ships .overdue / .overdue-badge for exactly this.
+        const deadlineStamp = quest.date ? new Date(`${quest.date}T${quest.time || "23:59"}`) : null;
+        const isOverdue = deadlineStamp && !isNaN(deadlineStamp) && deadlineStamp < new Date();
+        const overdueBadge = isOverdue ? ` <span class="overdue-badge">⚠️ OVERDUE</span>` : "";
+
         const card = document.createElement("div");
-        card.className = "quest-card panel";
+        card.className = isOverdue ? "quest-card panel overdue" : "quest-card panel";
         card.style.position = "relative";
         card.style.borderLeft = `5px solid ${quest.difficulty === 'epic' ? '#a855f7' : quest.difficulty === 'rare' ? '#3b82f6' : '#22c55e'}`;
-        
-        // Strikethrough & dimming styles if completed
-        if (isCompleted) {
-            card.style.opacity = "0.55";
-            card.style.background = "#111113";
-        }
 
-        const titleStyle = isCompleted 
-            ? "margin:0; font-size:1.1rem; text-decoration: line-through; color: var(--text-dim);" 
-            : "margin:0; font-size:1.1rem;";
-        
+        const titleStyle = "margin:0; font-size:1.1rem;";
+
         card.innerHTML = `
             <div style="display:flex; justify-content:space-between; align-items:start; margin-bottom:8px;">
                 <div>
-                    <h3 style="${titleStyle}">${quest.name}</h3>
-                    <span style="font-size:0.75rem; background:#18181b; padding:2px 6px; border-radius:4px; color:var(--text-dim); display:inline-block; margin-top:4px;">${quest.category}</span>
+                    <h3 style="${titleStyle}">${escapeHtml(quest.name)}</h3>
+                    <span style="font-size:0.75rem; background:#18181b; padding:2px 6px; border-radius:4px; color:var(--text-dim); display:inline-block; margin-top:4px;">${escapeHtml(quest.category)}</span>
                 </div>
-                <span style="text-transform:uppercase; font-size:0.7rem; font-weight:bold; color:var(--gold);">${quest.difficulty}</span>
+                <span style="text-transform:uppercase; font-size:0.7rem; font-weight:bold; color:var(--gold);">${escapeHtml(quest.difficulty)}</span>
             </div>
-            <p style="font-size:0.85rem; color:var(--text-dim); margin:5px 0;">📅 Deadline: ${quest.date} ${quest.time || ""}</p>
-            ${quest.notes ? `<p style="font-size:0.8rem; padding:6px; background:#18181b; border-radius:4px; color:var(--text-main); margin-bottom:12px;">📝 ${quest.notes}</p>` : ''}
+            <p style="font-size:0.85rem; color:var(--text-dim); margin:5px 0;">📅 Deadline: ${escapeHtml(quest.date)} ${escapeHtml(quest.time || "")}${overdueBadge}</p>
+            ${quest.notes ? `<p style="font-size:0.8rem; padding:6px; background:#18181b; border-radius:4px; color:var(--text-main); margin-bottom:12px;">📝 ${escapeHtml(quest.notes)}</p>` : ''}
             
-            ${!isCompleted ? `
-                <div class="hold-container" style="background:#27272a; height:40px; border-radius:6px; position:relative; overflow:hidden; cursor:pointer; display:flex; align-items:center; justify-content:center;">
-                    <div class="hold-progress-bar" id="progress-${quest.id}" style="position:absolute; left:0; top:0; height:100%; width:0%; background:linear-gradient(90deg, #ffd700, #4caf50); opacity: 0.4; transition: width 0.1s linear;"></div>
-                    <span style="z-index:2; font-size:0.85rem; font-weight:bold; pointer-events:none; color: #fff;">⚔️ HOLD TO COMPLETE QUEST</span>
-                </div>
-            ` : `
-                <div style="background:rgba(34, 197, 94, 0.15); border:1px solid #22c55e; color:#22c55e; height:36px; border-radius:6px; display:flex; align-items:center; justify-content:center; font-weight:bold; font-size:0.85rem;">
-                    ✓ QUEST COMPLETED
-                </div>
-            `}
+            <div class="hold-container" style="background:#27272a; height:40px; border-radius:6px; position:relative; overflow:hidden; cursor:pointer; display:flex; align-items:center; justify-content:center;">
+                <div class="hold-progress-bar" id="progress-${quest.id}" style="position:absolute; left:0; top:0; height:100%; width:0%; background:linear-gradient(90deg, #ffd700, #4caf50); opacity: 0.4; transition: width 0.1s linear;"></div>
+                <span style="z-index:2; font-size:0.85rem; font-weight:bold; pointer-events:none; color: #fff;">⚔️ HOLD TO COMPLETE QUEST</span>
+            </div>
 
-            <button onclick="window.abandonQuest('${quest.id}')" style="position:absolute; top:10px; right:10px; background:none; border:none; color:var(--danger); cursor:pointer; font-size:0.9rem;" title="Delete Quest">✖</button>
+            <button onclick="window.abandonQuest('${escapeHtml(quest.id)}')" style="position:absolute; top:10px; right:10px; background:none; border:none; color:var(--danger); cursor:pointer; font-size:0.9rem;" title="Delete Quest">✖</button>
         `;
-        
-        if (!isCompleted) {
-            bindHoldActionEvents(card.querySelector(".hold-container"), quest.id);
-        }
+
+        bindHoldActionEvents(card.querySelector(".hold-container"), quest.id);
         board.appendChild(card);
     });
 }
@@ -524,7 +778,7 @@ function renderQuestsBoard() {
 function bindHoldActionEvents(element, questId) {
     let trackingInterval = null;
     let heldMs = 0;
-    const targetRequired = 1000;
+    const targetRequired = BALANCE.HOLD_TO_COMPLETE_MS;
     
     const startTrigger = (e) => {
         e.preventDefault();
@@ -532,7 +786,7 @@ function bindHoldActionEvents(element, questId) {
         SoundEngine.init();
         
         trackingInterval = setInterval(() => {
-            heldMs += 100;
+            heldMs += BALANCE.HOLD_TICK_MS;
             const progressPct = Math.min(100, (heldMs / targetRequired) * 100);
             const progressBar = document.getElementById(`progress-${questId}`);
             if (progressBar) progressBar.style.width = `${progressPct}%`;
@@ -544,7 +798,7 @@ function bindHoldActionEvents(element, questId) {
                 clearInterval(trackingInterval);
                 executeQuestResolution(questId, e);
             }
-        }, 100);
+        }, BALANCE.HOLD_TICK_MS);
     };
     
     const cancelTrigger = () => {
@@ -560,56 +814,76 @@ function bindHoldActionEvents(element, questId) {
     element.addEventListener("touchend", cancelTrigger);
 }
 
-function executeQuestResolution(questId, event) {
+async function executeQuestResolution(questId, event) {
     const profile = state.profiles[state.activePlayer];
-    const matchIndex = profile.activeQuests.findIndex(q => q.id === questId);
-    if (matchIndex === -1) return;
-    
-    const quest = profile.activeQuests[matchIndex];
-    profile.activeQuests.splice(matchIndex, 1);
-    
-    let xpGain = 25, goldGain = 10;
-    if (quest.difficulty === 'rare') { xpGain = 60; goldGain = 25; }
-    if (quest.difficulty === 'epic') { xpGain = 120; goldGain = 50; }
-    
-    if (profile.rpgClass === "mage") xpGain = Math.floor(xpGain * 1.2);
-    if (profile.rpgClass === "rogue") goldGain = Math.floor(goldGain * 1.2);
-    if (profile.rpgClass === "ranger") xpGain = Math.floor(xpGain * 1.15);
-    if (profile.rpgClass === "warrior") { xpGain = Math.floor(xpGain * 1.1); goldGain = Math.floor(goldGain * 1.1); }
-    
-    // ⭐ CRITICAL FIX: Attributes are assigned strictly at quest resolution completion here
-    const linkedAttribute = ATTR_MAP[quest.category];
-    if (linkedAttribute && profile.attributes[linkedAttribute] !== undefined) {
-        profile.attributes[linkedAttribute] += 1;
-    }
-    
-    profile.xp += xpGain;
-    profile.gold += goldGain;
-    profile.streakCount++;
-    if (profile.streakCount > profile.maxStreak) profile.maxStreak = profile.streakCount;
-    if (profile.streakCount % 7 === 0) profile.streakShields++;
-    
-    restoreAttributesFromVictory(profile);
-    SoundEngine.coin();
-    if (navigator.vibrate) navigator.vibrate([100, 50, 100]); // Heavy Double Complete Pulse
-    
-    profile.questChronicle.unshift({
+    if (!profile) return;
+
+    const quest = (profile.activeQuests || []).find(q => q.id === questId);
+    if (!quest) return;
+
+    // Payout is decided once, up front, so both runs of the mutation award the same amount.
+    const reward = BALANCE.QUEST_REWARDS[quest.difficulty] || BALANCE.QUEST_REWARDS.common;
+    const bonus = BALANCE.CLASS_BONUSES[profile.rpgClass] || {};
+    const xpGain = Math.floor(reward.xp * (bonus.xp || 1));
+    const goldGain = Math.floor(reward.gold * (bonus.gold || 1));
+
+    // Timestamps generated out here — inside the mutation they'd differ between the two runs.
+    const chronicleEntry = {
         date: new Date().toLocaleDateString(),
+        ts: Date.now(), // machine-readable stamp so time filters don't depend on locale formatting
         name: quest.name,
         category: quest.category,
         bounty: `+${xpGain}XP / +${goldGain}G`
+    };
+
+    const outcome = await saveProfileChange(profile.id, p => {
+        // Look the quest up by id, not index — the server copy may be ordered differently.
+        // If it's already gone, someone else completed it: bail out rather than double-pay.
+        const idx = (p.activeQuests || []).findIndex(q => q.id === questId);
+        if (idx === -1) return { alreadyResolved: true };
+        p.activeQuests.splice(idx, 1);
+
+        // Lift any active penalty FIRST — restoring afterwards would overwrite the point earned below.
+        const penaltyLifted = restoreAttributesFromVictory(p);
+
+        // ⭐ Attributes are assigned strictly at quest resolution completion here
+        const linkedAttribute = ATTR_MAP[quest.category];
+        if (linkedAttribute && p.attributes[linkedAttribute] !== undefined) {
+            p.attributes[linkedAttribute] += 1;
+        }
+
+        p.xp += xpGain;
+        p.gold += goldGain;
+        p.streakCount++;
+        if (p.streakCount > p.maxStreak) p.maxStreak = p.streakCount;
+        if (p.streakCount % BALANCE.STREAK_SHIELD_EVERY === 0) p.streakShields++;
+
+        p.questChronicle.unshift({ ...chronicleEntry });
+
+        // Loop, don't branch: a big Epic payout can clear more than one level at once.
+        let levelsGained = 0;
+        while (p.xp >= BALANCE.XP_PER_LEVEL) {
+            p.level++;
+            p.xp -= BALANCE.XP_PER_LEVEL;
+            levelsGained++;
+        }
+        return { levelsGained, newLevel: p.level, penaltyLifted };
     });
-    
-    if (profile.xp >= 100) {
-        profile.level++;
-        profile.xp -= 100;
-        SoundEngine.levelUp();
-        triggerLevelUpBreakoutModal(profile.level);
-    }
-    
+
+    // Everything below is presentation only, driven by what the mutation reported back.
+    if (!outcome || outcome.alreadyResolved) return;
+
+    SoundEngine.coin();
+    if (navigator.vibrate) navigator.vibrate([100, 50, 100]); // Heavy Double Complete Pulse
     createHardwarePopupText(`✨ +${xpGain} XP\n🪙 +${goldGain} Gold`, event);
-    pushProfileToCloud(profile.id);
-    renderEntireViewport();
+
+    if (outcome.levelsGained > 0) {
+        SoundEngine.levelUp();
+        triggerLevelUpBreakoutModal(outcome.newLevel);
+    }
+    if (outcome.penaltyLifted) {
+        alert("✨ Grace Restored! Your core attributes have returned to optimal values.");
+    }
 }
 
 function createHardwarePopupText(message, event) {
@@ -629,6 +903,110 @@ function createHardwarePopupText(message, event) {
 // ==========================================
 // 📊 SUMMARY TABLES & FINANCIAL ENVELOPES
 // ==========================================
+
+// 🎨 ENVELOPE HEALTH COLOR CALCULATOR
+// Single source of truth for envelope colour/messaging — the summary view and the envelope
+// cards both call this, so they can never drift apart.
+window.getEnvelopeStatus = function(currentBalance, targetAmount, minThreshold) {
+    const current = parseFloat(currentBalance) || 0;
+    const target = (parseFloat(targetAmount) > 0) ? parseFloat(targetAmount) : ENVELOPE_DEFAULTS.TARGET;
+    const min = parseFloat(minThreshold) || ENVELOPE_DEFAULTS.MIN_THRESHOLD;
+
+    const percentRemaining = (current / target) * 100;
+    const distanceToMin = current - min;
+
+    // 🔴 RED ZONE
+    if (percentRemaining <= ENVELOPE_DEFAULTS.DANGER_PERCENT || distanceToMin <= ENVELOPE_DEFAULTS.DANGER_BUFFER) {
+        return {
+            color: "#ef4444",
+            status: "DANGER",
+            message: `⚠️ Last $${current.toFixed(2)} in this envelope! Spend wisely.`
+        };
+    }
+
+    // 🟡 YELLOW ZONE
+    if (percentRemaining <= ENVELOPE_DEFAULTS.CAUTION_PERCENT) {
+        return {
+            color: "#f59e0b",
+            status: "CAUTION",
+            message: "⚡ Budget getting low. Keep an eye on entries."
+        };
+    }
+
+    // 🟢 GREEN ZONE
+    return {
+        color: "#10b981",
+        status: "SAFE",
+        message: "✅ Budget healthy."
+    };
+};
+
+// ✉️ ENVELOPE MANAGER (Edit Name, Target, Low-Balance Alert, or Delete)
+window.openEditEnvelopeModal = function(envelopeId) {
+    const profile = state.profiles ? state.profiles[state.activePlayer] : null;
+    if (!profile || !profile.envelopes) return;
+
+    const targetIndex = profile.envelopes.findIndex(e => (e.id || e.name) === envelopeId);
+    if (targetIndex === -1) { alert("⚠️ Envelope not found!"); return; }
+
+    const targetEnv = profile.envelopes[targetIndex];
+    const envName = targetEnv.name || "Envelope";
+    const envBalance = targetEnv.balance || 0;
+    const envTarget = targetEnv.target || ENVELOPE_DEFAULTS.TARGET;
+    const envMin = targetEnv.minThreshold || ENVELOPE_DEFAULTS.MIN_THRESHOLD;
+
+    const choice = prompt(
+        `✉️ SETTINGS FOR: "${envName}"\n` +
+        `Current Balance: $${envBalance.toFixed(2)}\n` +
+        `Monthly Target: $${envTarget} | Low-Balance Warning at: $${envMin}\n\n` +
+        `Select an action:\n` +
+        `[1] Edit Envelope Name\n` +
+        `[2] Edit Monthly Target ($)\n` +
+        `[3] Edit Low-Balance Alert Threshold ($)\n` +
+        `[4] Delete Envelope\n\n` +
+        `Type 1, 2, 3, or 4:`,
+        "1"
+    );
+
+    // Collect the prompt answers first, then express the edit as a single data change.
+    // Everything below looks the envelope up by id, never by index, so it applies cleanly
+    // to the server's copy even if its envelope ordering differs.
+    let change = null;
+
+    if (choice === "1") {
+        const newName = prompt("Enter new Envelope Name:", envName);
+        if (!newName || !newName.trim()) return;
+        const trimmed = newName.trim();
+        change = env => { env.name = trimmed; };
+    } else if (choice === "2") {
+        const newTarget = prompt("Enter Monthly Target Amount ($):", envTarget);
+        if (newTarget === null) return;
+        const parsed = parseFloat(newTarget) || 0;
+        change = env => { env.target = parsed; };
+    } else if (choice === "3") {
+        const newMin = prompt("Alert me when balance falls below ($):", envMin);
+        if (newMin === null) return;
+        const parsed = parseFloat(newMin) || 0;
+        change = env => { env.minThreshold = parsed; };
+    } else if (choice === "4") {
+        if (!confirm(`⚠️ Delete "${envName}"?${envBalance > 0 ? `\n\nThe $${envBalance.toFixed(2)} still inside will be removed from your wallet total.` : ""}`)) return;
+        change = "delete";
+    } else {
+        return;
+    }
+
+    saveProfileChange(profile.id, p => {
+        const idx = (p.envelopes || []).findIndex(e => (e.id || e.name) === envelopeId);
+        if (idx === -1) return;
+        if (change === "delete") {
+            // The wallet total is derived from the envelope list, so removing it is enough
+            p.envelopes.splice(idx, 1);
+        } else {
+            change(p.envelopes[idx]);
+        }
+    });
+};
+
 function renderSummaryTables() {
     const profile = state.profiles[state.activePlayer];
     if (!profile) return;
@@ -640,7 +1018,11 @@ function renderSummaryTables() {
         const now = new Date();
         return list.filter(item => {
             if (type === "all") return true;
-            const diffDays = (now - new Date(item.date)) / (1000 * 60 * 60 * 24);
+            // Prefer the numeric stamp. Older entries only have a locale-formatted date string,
+            // which new Date() can't parse outside US format — keep those rather than hide them.
+            const stamp = item.ts ? new Date(item.ts) : new Date(item.date);
+            if (isNaN(stamp.getTime())) return true;
+            const diffDays = (now - stamp) / (1000 * 60 * 60 * 24);
             return type === "week" ? diffDays <= 7 : diffDays <= 30;
         });
     };
@@ -649,8 +1031,8 @@ function renderSummaryTables() {
     const cleanChronicleList = filterByTimeWindow(profile.questChronicle, chronicleFilter);
     
     const paginateArray = (arr, targetPage) => {
-        const start = (targetPage - 1) * state.rowsPerPage;
-        return arr.slice(start, start + state.rowsPerPage);
+        const start = (targetPage - 1) * BALANCE.ROWS_PER_PAGE;
+        return arr.slice(start, start + BALANCE.ROWS_PER_PAGE);
     };
     
     const viewWallet = paginateArray(cleanWalletList, state.ledgerPage);
@@ -662,94 +1044,21 @@ function renderSummaryTables() {
     } else {
         viewWallet.forEach(w => {
             const tr = document.createElement("tr"); tr.style.borderBottom = "1px solid #27272a"; tr.style.cursor = "pointer";
-            tr.onclick = () => alert(`📒 Entry Log:\nEnvelope Context: ${w.envelope}\nDescription Details: "${w.memo}"\nDelta: $${w.amount.toFixed(2)}`);
-            const colorStyle = w.amount < 0 ? "color:var(--danger);" : "color:var(--success);";
-            tr.innerHTML = `<td style="padding:10px;">${w.date}</td><td style="padding:10px;">${w.envelope}</td><td style="padding:10px; max-width:120px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${w.memo}</td><td style="padding:10px; font-weight:bold; ${colorStyle}">${w.amount < 0 ? "" : "+"}$${w.amount.toFixed(2)}</td>`;
+            const rowAmount = Number(w.amount) || 0;
+            // Transfers are net-zero on the wallet, so show the moved figure instead of "$0.00"
+            const deltaLine = w.transferAmount
+                ? `Transferred: $${Number(w.transferAmount).toFixed(2)}`
+                : `Delta: $${rowAmount.toFixed(2)}`;
+            tr.onclick = () => alert(`📒 Entry Log:\nEnvelope Context: ${w.envelope}\nDescription Details: "${w.memo}"\n${deltaLine}`);
+            const colorStyle = rowAmount < 0 ? "color:var(--danger);" : "color:var(--success);";
+            const amountCell = w.transferAmount
+                ? `<span style="color:var(--text-dim);">↔ $${Number(w.transferAmount).toFixed(2)}</span>`
+                : `${rowAmount < 0 ? "" : "+"}$${rowAmount.toFixed(2)}`;
+            tr.innerHTML = `<td style="padding:10px;">${escapeHtml(w.date)}</td><td style="padding:10px;">${escapeHtml(w.envelope)}</td><td style="padding:10px; max-width:120px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${escapeHtml(w.memo)}</td><td style="padding:10px; font-weight:bold; ${colorStyle}">${amountCell}</td>`;
             walletBody.appendChild(tr);
         });
     }
 
- // 🎨 ENVELOPE HEALTH COLOR CALCULATOR
-window.getEnvelopeStatus = function(currentBalance, targetAmount, minThreshold) {
-  const current = parseFloat(currentBalance) || 0;
-  const target = (parseFloat(targetAmount) > 0) ? parseFloat(targetAmount) : 100;
-  const min = parseFloat(minThreshold) || 0;
-
-  const percentRemaining = (current / target) * 100;
-  const distanceToMin = current - min;
-
-  // 🔴 RED ZONE
-  if (percentRemaining <= 15 || distanceToMin <= 25) {
-    return {
-      color: "#ef4444",
-      status: "DANGER",
-      message: `⚠️ Last $${current.toFixed(2)} in this envelope! Spend wisely.`
-    };
-  }
-
-  // 🟡 YELLOW ZONE
-  if (percentRemaining <= 30) {
-    return {
-      color: "#f59e0b",
-      status: "CAUTION",
-      message: "⚡ Budget getting low. Keep an eye on entries."
-    };
-  }
-
-  // 🟢 GREEN ZONE
-  return {
-    color: "#10b981",
-    status: "SAFE",
-    message: "✅ Budget healthy."
-  };
-};
-// ✉️ ENVELOPE MANAGER (Edit Name, Target, Low-Balance Alert, or Delete)
-window.openEditEnvelopeModal = function(envelopeId) {
-  const profile = state.profiles ? state.profiles[state.activePlayer] : null;
-  if (!profile || !profile.envelopes) return;
-
-  const targetIndex = profile.envelopes.findIndex(e => (e.id || e.name) === envelopeId);
-  if (targetIndex === -1) { alert("⚠️ Envelope not found!"); return; }
-
-  const targetEnv = profile.envelopes[targetIndex];
-  const envName = targetEnv.name || "Envelope";
-  const envBalance = targetEnv.balance || 0;
-  const envTarget = targetEnv.target || 100;
-  const envMin = targetEnv.minThreshold || 0;
-
-  const choice = prompt(
-    `✉️ SETTINGS FOR: "${envName}"\n` +
-    `Current Balance: $${envBalance.toFixed(2)}\n` +
-    `Monthly Target: $${envTarget} | Low-Balance Warning at: $${envMin}\n\n` +
-    `Select an action:\n` +
-    `[1] Edit Envelope Name\n` +
-    `[2] Edit Monthly Target ($)\n` +
-    `[3] Edit Low-Balance Alert Threshold ($)\n` +
-    `[4] Delete Envelope\n\n` +
-    `Type 1, 2, 3, or 4:`,
-    "1"
-  );
-
-  if (choice === "1") {
-    const newName = prompt("Enter new Envelope Name:", envName);
-    if (newName && newName.trim()) targetEnv.name = newName.trim();
-  } else if (choice === "2") {
-    const newTarget = prompt("Enter Monthly Target Amount ($):", envTarget);
-    if (newTarget !== null) targetEnv.target = parseFloat(newTarget) || 0;
-  } else if (choice === "3") {
-    const newMin = prompt("Alert me when balance falls below ($):", envMin);
-    if (newMin !== null) targetEnv.minThreshold = parseFloat(newMin) || 0;
-  } else if (choice === "4") {
-    if (confirm(`⚠️ Delete "${envName}"?`)) {
-      profile.envelopes.splice(targetIndex, 1);
-    } else { return; }
-  } else {
-    return;
-  }
-
-  if (typeof pushProfileToCloud === 'function') pushProfileToCloud(profile.id);
-  if (typeof renderEntireViewport === 'function') renderEntireViewport();
-};
     const chronicleBody = document.getElementById("quest-chronicle-body"); chronicleBody.innerHTML = "";
     if (viewChronicle.length === 0) {
         chronicleBody.innerHTML = `<tr><td colspan="4" style="padding:15px; text-align:center; color:var(--text-dim);">No quest archives verified.</td></tr>`;
@@ -757,15 +1066,20 @@ window.openEditEnvelopeModal = function(envelopeId) {
         viewChronicle.forEach(c => {
             const tr = document.createElement("tr"); tr.style.borderBottom = "1px solid #27272a"; tr.style.cursor = "pointer";
             tr.onclick = () => alert(`🏆 Archive Context:\nObjective: ${c.name}\nClass Focus: ${c.category}\nBounty Payout: ${c.bounty}`);
-            tr.innerHTML = `<td style="padding:10px;">${c.date}</td><td style="padding:10px; max-width:140px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${c.name}</td><td style="padding:10px;"><span style="font-size:0.75rem; background:#27272a; padding:2px 6px; border-radius:4px;">${c.category.split(" ")[0]}</span></td><td style="padding:10px; color:var(--gold); font-weight:bold;">${c.bounty}</td>`;
+            tr.innerHTML = `<td style="padding:10px;">${escapeHtml(c.date)}</td><td style="padding:10px; max-width:140px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${escapeHtml(c.name)}</td><td style="padding:10px;"><span style="font-size:0.75rem; background:#27272a; padding:2px 6px; border-radius:4px;">${escapeHtml(String(c.category || "").split(" ")[0])}</span></td><td style="padding:10px; color:var(--gold); font-weight:bold;">${escapeHtml(c.bounty)}</td>`;
             chronicleBody.appendChild(tr);
         });
     }
     
-    document.getElementById("ledger-page-num").innerText = `Page ${state.ledgerPage} / ${Math.max(1, Math.ceil(cleanWalletList.length / state.rowsPerPage))}`;
-    document.getElementById("chronicle-page-num").innerText = `Page ${state.chroniclePage} / ${Math.max(1, Math.ceil(cleanChronicleList.length / state.rowsPerPage))}`;
-    
-    const spentTotal = profile.walletLedger.filter(l => l.amount < 0).reduce((sum, current) => sum + current.amount, 0);
+    // Remember the page counts so the Prev/Next buttons can clamp against them
+    state.ledgerTotalPages = Math.max(1, Math.ceil(cleanWalletList.length / BALANCE.ROWS_PER_PAGE));
+    state.chronicleTotalPages = Math.max(1, Math.ceil(cleanChronicleList.length / BALANCE.ROWS_PER_PAGE));
+
+    document.getElementById("ledger-page-num").innerText = `Page ${state.ledgerPage} / ${state.ledgerTotalPages}`;
+    document.getElementById("chronicle-page-num").innerText = `Page ${state.chroniclePage} / ${state.chronicleTotalPages}`;
+
+    // Totals follow the same time window as the table below them, otherwise the two disagree on screen
+    const spentTotal = cleanWalletList.filter(l => Number(l.amount) < 0).reduce((sum, current) => sum + Number(current.amount), 0);
     const poolSum = profile.envelopes.reduce((sum, curr) => sum + curr.balance, 0);
     document.getElementById("sum-allocated").innerText = `$${poolSum.toFixed(2)}`;
     document.getElementById("sum-spent").innerText = `$${Math.abs(spentTotal).toFixed(2)}`;
@@ -781,6 +1095,14 @@ function renderEnvelopesView() {
     const trfFrom = document.getElementById("transfer-from-select");
     const trfTo = document.getElementById("transfer-to-select");
 
+    // Remember what was picked — these selects get rebuilt from scratch below, and losing
+    // the selection mid-flow silently retargets a transfer at the wrong envelope.
+    const previousChoice = {
+        trans: transSelect ? transSelect.value : "",
+        from: trfFrom ? trfFrom.value : "",
+        to: trfTo ? trfTo.value : ""
+    };
+
     if (stack) stack.innerHTML = "";
     if (transSelect) transSelect.innerHTML = "";
     if (trfFrom) trfFrom.innerHTML = "";
@@ -788,50 +1110,18 @@ function renderEnvelopesView() {
 
     if (!profile.envelopes || !Array.isArray(profile.envelopes)) return;
 
-    // 🎨 Helper for envelope health status
-    const calculateStatus = function(currentBalance, targetAmount, minThreshold) {
-        const current = parseFloat(currentBalance) || 0;
-        const target = (parseFloat(targetAmount) > 0) ? parseFloat(targetAmount) : 100;
-        const min = parseFloat(minThreshold) || 0;
-
-        const percentRemaining = (current / target) * 100;
-        const distanceToMin = current - min;
-
-        // 🔴 RED ZONE
-        if (percentRemaining <= 15 || distanceToMin <= 25) {
-            return {
-                color: "#ef4444",
-                message: `⚠️ Last $${current.toFixed(2)} in envelope! Spend wisely.`
-            };
-        }
-
-        // 🟡 YELLOW ZONE
-        if (percentRemaining <= 30) {
-            return {
-                color: "#f59e0b",
-                message: "⚡ Budget getting low. Keep an eye on entries."
-            };
-        }
-
-        // 🟢 GREEN ZONE
-        return {
-            color: "#10b981",
-            message: "✅ Budget healthy."
-        };
-    };
-
     profile.envelopes.forEach(env => {
         const card = document.createElement("div"); 
         card.style.cssText = "background: #18181b; padding: 14px; border-radius: 10px; margin-bottom: 12px; border: 1px solid #27272a; display: flex; flex-direction: column; gap: 6px;";
 
-        const targetVal = env.target || 100;
-        const status = calculateStatus(env.balance, targetVal, env.minThreshold || 0);
+        const targetVal = env.target || ENVELOPE_DEFAULTS.TARGET;
+        const status = window.getEnvelopeStatus(env.balance, targetVal, env.minThreshold || ENVELOPE_DEFAULTS.MIN_THRESHOLD);
 
         card.innerHTML = `
           <div style="display:flex; justify-content:space-between; align-items:center;">
             <div style="display:flex; align-items:center; gap:8px;">
-              <h3 style="margin:0; font-size:1.05rem; color:#ffffff; font-weight:600;">📁 ${env.name}</h3>
-              <button onclick="window.openEditEnvelopeModal('${env.id || env.name}')" style="background:none; border:none; cursor:pointer; font-size:0.9rem; padding:0; opacity:0.8;" title="Edit or Delete">✏️</button>
+              <h3 style="margin:0; font-size:1.05rem; color:#ffffff; font-weight:600;">📁 ${escapeHtml(env.name)}</h3>
+              <button onclick="window.openEditEnvelopeModal('${escapeHtml(env.id || env.name)}')" style="background:none; border:none; cursor:pointer; font-size:0.9rem; padding:0; opacity:0.8;" title="Edit or Delete">✏️</button>
             </div>
             <span style="font-size:1.15rem; font-weight:bold; color:${status.color};">$${parseFloat(env.balance || 0).toFixed(2)}</span>
           </div>
@@ -844,11 +1134,19 @@ function renderEnvelopesView() {
         if (stack) stack.appendChild(card);
 
         // Populate dropdown selectors
-        const opt = `<option value="${env.id || env.name}">${env.name} ($${parseFloat(env.balance || 0).toFixed(2)})</option>`;
+        const opt = `<option value="${escapeHtml(env.id || env.name)}">${escapeHtml(env.name)} ($${parseFloat(env.balance || 0).toFixed(2)})</option>`;
         if (transSelect) transSelect.innerHTML += opt;
         if (trfFrom) trfFrom.innerHTML += opt;
         if (trfTo) trfTo.innerHTML += opt;
     });
+
+    // Put the user's picks back if those envelopes still exist
+    const restoreChoice = (el, value) => {
+        if (el && value && [...el.options].some(o => o.value === value)) el.value = value;
+    };
+    restoreChoice(transSelect, previousChoice.trans);
+    restoreChoice(trfFrom, previousChoice.from);
+    restoreChoice(trfTo, previousChoice.to);
 } // <-- This correctly closes renderEnvelopesView!
 
 // ==========================================
@@ -867,8 +1165,19 @@ function setupEventHandlers() {
 
     window.switchPlayerProfile = function() {
         const sel = document.getElementById("global-player-select");
-        if (sel) state.activePlayer = sel.value;
-        state.questPage = 1; state.ledgerPage = 1; state.chroniclePage = 1;
+        if (!sel || !sel.value) return;
+
+        // Only switch to a hero we actually hold data for — pointing activePlayer at a
+        // profile that doesn't exist used to leave the whole view silently blank.
+        if (!state.profiles[sel.value]) {
+            console.warn("⚠️ No profile loaded for", sel.value, "- staying on", state.activePlayer);
+            if (state.activePlayer) sel.value = state.activePlayer;
+            return;
+        }
+
+        state.activePlayer = sel.value;
+        localStorage.setItem("masterflow_active_player", state.activePlayer);
+        state.ledgerPage = 1; state.chroniclePage = 1;
         if (typeof runStreakCalendarAudit === 'function') runStreakCalendarAudit();
         renderEntireViewport();
     };
@@ -878,20 +1187,27 @@ function setupEventHandlers() {
         questForm.onsubmit = function(e) {
             e.preventDefault();
             const profile = state.profiles[state.activePlayer];
-            
-            profile.activeQuests.push({
+            if (!profile) return;
+
+            const questName = document.getElementById("quest-name").value.trim();
+            if (!questName) { alert("⚠️ Give the quest a name."); return; }
+            // Built out here so the id is identical on both runs of the mutation
+            const newQuest = {
                 id: 'qst-' + Date.now(),
-                name: document.getElementById("quest-name").value,
+                name: questName,
                 date: document.getElementById("quest-date").value,
                 time: document.getElementById("quest-time").value,
                 notes: document.getElementById("quest-notes").value,
                 category: document.getElementById("quest-category").value,
                 difficulty: document.getElementById("quest-difficulty").value
-            });
-            
+            };
+
             questForm.reset();
-            if (typeof pushProfileToCloud === 'function') pushProfileToCloud(profile.id);
-            renderEntireViewport();
+            saveProfileChange(profile.id, p => {
+                if (!Array.isArray(p.activeQuests)) p.activeQuests = [];
+                if (p.activeQuests.some(q => q.id === newQuest.id)) return; // never double-add
+                p.activeQuests.push({ ...newQuest });
+            });
         };
     }
 
@@ -906,18 +1222,25 @@ function setupEventHandlers() {
             if (isNaN(amt) || amt <= 0) return;
             
             const targetEnv = profile.envelopes.find(env => env.id === envId);
+            if (!targetEnv) { alert("⚠️ Pick an envelope first."); return; }
             if (state.walletMode === 'spend') {
                 amt = -amt;
                 if (targetEnv.balance + amt < 0) { alert("Denied! Envelope allocation deficit protocol active."); return; }
             }
-            
-            targetEnv.balance += amt;
-            profile.walletBalance += amt;
-            profile.walletLedger.unshift({ date: new Date().toLocaleDateString(), envelope: targetEnv.name, memo: memo, amount: amt });
-            
+
+            const entry = { date: new Date().toLocaleDateString(), ts: Date.now(), envelope: targetEnv.name, memo: memo, amount: amt };
+            const appliedAmount = amt;
+
             transForm.reset();
-            if (typeof pushProfileToCloud === 'function') pushProfileToCloud(profile.id);
-            renderEntireViewport();
+            saveProfileChange(profile.id, p => {
+                const env = (p.envelopes || []).find(e => e.id === envId);
+                if (!env) return;
+                if (!Array.isArray(p.walletLedger)) p.walletLedger = [];
+                // Bail BEFORE touching the balance, or a replay would debit twice
+                if (p.walletLedger.some(l => l.ts === entry.ts && l.memo === entry.memo)) return;
+                env.balance += appliedAmount;
+                p.walletLedger.unshift({ ...entry });
+            });
         };
     }
 
@@ -928,32 +1251,44 @@ function setupEventHandlers() {
 
         const nameInput = document.getElementById("new-envelope-name");
         const balInput = document.getElementById("new-envelope-balance");
+        const targetInput = document.getElementById("new-envelope-target");
+        const minInput = document.getElementById("new-envelope-min");
 
         const name = nameInput ? nameInput.value.trim() : "";
         const bal = balInput ? parseFloat(balInput.value) || 0 : 0;
+        // These two used to be ignored entirely — whatever the user typed was thrown away.
+        const target = targetInput && parseFloat(targetInput.value) > 0 ? parseFloat(targetInput.value) : 100;
+        const minThreshold = minInput ? Math.max(0, parseFloat(minInput.value) || 0) : 0;
 
         if (!name) {
             alert("⚠️ Please enter an envelope name!");
             return;
         }
 
-        if (!profile.envelopes) profile.envelopes = [];
+        if (bal < 0) {
+            alert("⚠️ Starting balance can't be negative!");
+            return;
+        }
 
-        profile.envelopes.push({
+        // Built out here so both runs of the mutation share one id
+        const newEnvelope = {
             id: 'env-' + Date.now(),
             name: name.includes("📂") ? name : `📂 ${name}`,
             balance: bal,
-            target: 100,
-            minThreshold: 0
-        });
-
-        profile.walletBalance = (profile.walletBalance || 0) + bal;
+            target: target,
+            minThreshold: minThreshold
+        };
 
         if (nameInput) nameInput.value = "";
         if (balInput) balInput.value = "";
+        if (targetInput) targetInput.value = "";
+        if (minInput) minInput.value = "";
 
-        if (typeof pushProfileToCloud === 'function') pushProfileToCloud(profile.id);
-        renderEntireViewport();
+        saveProfileChange(profile.id, p => {
+            if (!Array.isArray(p.envelopes)) p.envelopes = [];
+            if (p.envelopes.some(e => e.id === newEnvelope.id)) return; // never double-add
+            p.envelopes.push({ ...newEnvelope });
+        });
     };
 
     const addEnvBtn = document.getElementById("btn-add-envelope");
@@ -967,17 +1302,37 @@ function setupEventHandlers() {
         const toId = document.getElementById("transfer-to-select").value;
         const amt = parseFloat(document.getElementById("transfer-amount-input").value);
         
-        if (isNaN(amt) || amt <= 0 || fromId === toId) return;
+        // Every rejection now says why instead of failing silently
+        if (isNaN(amt) || amt <= 0) { alert("⚠️ Enter an amount greater than $0 to transfer."); return; }
+        if (fromId === toId) { alert("⚠️ Pick two different envelopes to move money between."); return; }
+
         const sEnv = profile.envelopes.find(e => e.id === fromId);
         const tEnv = profile.envelopes.find(e => e.id === toId);
-        if (sEnv.balance < amt) return;
-        
-        sEnv.balance -= amt; tEnv.balance += amt;
-        profile.walletLedger.unshift({ date: new Date().toLocaleDateString(), envelope: `🔄 Transfer Hub`, memo: `Moved from ${sEnv.name.split(" ")[1]} to ${tEnv.name.split(" ")[1]}`, amount: 0 });
-        
+        if (!sEnv || !tEnv) { alert("⚠️ Envelope not found — try reloading."); return; }
+        if (sEnv.balance < amt) { alert(`⚠️ "${sEnv.name}" only holds $${sEnv.balance.toFixed(2)}.`); return; }
+
+        // amount stays 0 so transfers never count as spending, but the figure is kept for the audit trail
+        const entry = {
+            date: new Date().toLocaleDateString(),
+            ts: Date.now(),
+            envelope: `🔄 Transfer Hub`,
+            memo: `Moved $${amt.toFixed(2)} from ${sEnv.name} to ${tEnv.name}`,
+            amount: 0,
+            transferAmount: amt
+        };
+
         document.getElementById("transfer-amount-input").value = "";
-        if (typeof pushProfileToCloud === 'function') pushProfileToCloud(profile.id);
-        renderEntireViewport();
+        saveProfileChange(profile.id, p => {
+            const from = (p.envelopes || []).find(e => e.id === fromId);
+            const to = (p.envelopes || []).find(e => e.id === toId);
+            if (!from || !to) return;
+            if (!Array.isArray(p.walletLedger)) p.walletLedger = [];
+            // Bail BEFORE moving money, or a replay would transfer twice
+            if (p.walletLedger.some(l => l.ts === entry.ts && l.memo === entry.memo)) return;
+            from.balance -= amt;
+            to.balance += amt;
+            p.walletLedger.unshift({ ...entry });
+        });
     };
 
     window.setWalletMode = function(mode) {
@@ -997,42 +1352,44 @@ function setupEventHandlers() {
     const saveHeroBtn = document.getElementById("btn-save-hero-name");
     if (saveHeroBtn) {
         saveHeroBtn.onclick = function() {
-            const inputVal = document.getElementById("hero-name-input").value;
+            const inputVal = document.getElementById("hero-name-input").value.trim();
             if (!inputVal) return;
-            state.profiles[state.activePlayer].name = inputVal;
-            if (typeof pushProfileToCloud === 'function') pushProfileToCloud(state.activePlayer);
-            renderEntireViewport();
+            saveProfileChange(state.activePlayer, p => { p.name = inputVal; });
         };
     }
 
     window.abandonQuest = function(id) {
         const profile = state.profiles[state.activePlayer];
-        profile.activeQuests = profile.activeQuests.filter(q => q.id !== id);
-        if (typeof pushProfileToCloud === 'function') pushProfileToCloud(profile.id);
-        renderEntireViewport();
+        if (!profile) return;
+        saveProfileChange(profile.id, p => {
+            p.activeQuests = (p.activeQuests || []).filter(q => q.id !== id);
+        });
     };
 
     window.updateCharacterGender = function() {
         const sel = document.getElementById("hero-gender-select");
-        if (sel) state.profiles[state.activePlayer].gender = sel.value;
-        if (typeof pushProfileToCloud === 'function') pushProfileToCloud(state.activePlayer);
-        renderEntireViewport();
+        if (!sel) return;
+        const gender = sel.value;
+        saveProfileChange(state.activePlayer, p => { p.gender = gender; });
     };
 
     window.updateCharacterClass = function() {
         const sel = document.getElementById("hero-class-select");
-        if (sel) state.profiles[state.activePlayer].rpgClass = sel.value;
-        if (typeof pushProfileToCloud === 'function') pushProfileToCloud(state.activePlayer);
-        renderEntireViewport();
+        if (!sel) return;
+        const rpgClass = sel.value;
+        saveProfileChange(state.activePlayer, p => { p.rpgClass = rpgClass; });
     };
 
     window.changeLedgerPage = function(delta) {
-        state.ledgerPage = Math.max(1, state.ledgerPage + delta);
+        // Clamp both ends — walking past the last page used to show empty tables like "Page 8 / 3"
+        const maxPage = state.ledgerTotalPages || 1;
+        state.ledgerPage = Math.min(maxPage, Math.max(1, state.ledgerPage + delta));
         if (typeof renderSummaryTables === 'function') renderSummaryTables();
     };
 
     window.changeChroniclePage = function(delta) {
-        state.chroniclePage = Math.max(1, state.chroniclePage + delta);
+        const maxPage = state.chronicleTotalPages || 1;
+        state.chroniclePage = Math.min(maxPage, Math.max(1, state.chroniclePage + delta));
         if (typeof renderSummaryTables === 'function') renderSummaryTables();
     };
 
@@ -1054,18 +1411,23 @@ function setupEventHandlers() {
     };
 
     window.wipeEntireEngine = function() {
-        if (confirm("🚨 Hard reset this individual player identity block?")) {
-            const id = state.activePlayer;
-            if (typeof createBlankProfile === 'function') {
-                state.profiles[id] = createBlankProfile(id, id.charAt(0).toUpperCase() + id.slice(1));
-            }
-            if (typeof pushProfileToCloud === 'function') pushProfileToCloud(id);
-            renderEntireViewport();
-        }
+        if (!confirm("🚨 Hard reset this individual player identity block?")) return;
+
+        const id = state.activePlayer;
+        const existingName = state.profiles[id] && state.profiles[id].name;
+        const blank = createBlankProfile(id, existingName || id);
+
+        // A reset is deliberately absolute — it replaces the server copy outright rather
+        // than merging into it, which is exactly what the user asked for.
+        saveProfileChange(id, p => {
+            Object.assign(p, JSON.parse(JSON.stringify(blank)));
+            delete p.attributesBeforePenalty;
+        });
     };
 }
 
 function renderEntireViewport() {
+    if (typeof renderPlayerRoster === 'function') renderPlayerRoster();
     if (typeof renderCharacterPanel === 'function') renderCharacterPanel();
     if (typeof renderQuestsBoard === 'function') renderQuestsBoard();
     if (typeof renderEnvelopesView === 'function') renderEnvelopesView();
