@@ -1356,7 +1356,6 @@ function setupEventHandlers() {
             if (!inputVal) return;
             saveProfileChange(state.activePlayer, p => { p.name = inputVal; });
         };
-    }
 
     window.abandonQuest = function(id) {
         const profile = state.profiles[state.activePlayer];
