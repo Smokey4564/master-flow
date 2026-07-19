@@ -59,7 +59,10 @@ Open `index.html` directly in a browser, or serve the directory locally:
 
 ```bash
 npx serve
-What Was Fixed / Added
+```
+
+## What Was Fixed / Added
+
 Added master-card, tier, hold-progress, time-badge, completion, and overdue styles.
 
 Fixed the financial summary to show current envelope balances as allocated budget and negative wallet journal entries as total spent.

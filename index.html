@@ -31,9 +31,8 @@
     <div class="account-bar-panel" style="background:var(--card-bg); padding:12px; border-radius:8px; margin-bottom:15px; border:1px solid var(--border);">
         <label style="margin:0; font-size:0.75rem; text-transform:uppercase; color:var(--text-dim); font-weight:bold;">Active Hero Identity Link</label>
         <div style="display: flex; gap: 8px; margin-top: 4px;">
+            <!-- Options are rendered at runtime from whoever is actually in this household -->
             <select id="global-player-select" onchange="window.switchPlayerProfile()" style="padding: 8px; font-size:0.9rem; flex: 2; height:38px; background:#27272a; color:white; border:1px solid var(--border); border-radius:6px;">
-                <option value="angel">Angel (Account 1)</option>
-                <option value="brianna">Brianna (Account 2)</option>
             </select>
         </div>
     </div>
@@ -176,14 +175,16 @@
         </div>
 
         <div class="panel">
-  <h3>Create Budget Envelope</h3>
-  <input type="text" id="new-envelope-name" placeholder="Envelope name">
-  <input type="number" id="new-envelope-balance" placeholder="Starting balance ($)">
-  <input type="number" id="new-envelope-target" placeholder="Target monthly goal ($)">
-  <input type="number" id="new-envelope-min" placeholder="Min safety threshold ($)">
-  <button onclick="createNewEnvelope()">Create Envelope</button>
-</div>
+            <h3>Create Budget Envelope</h3>
+            <input type="text" id="new-envelope-name" placeholder="Envelope name">
+            <input type="number" id="new-envelope-balance" placeholder="Starting balance ($)">
+            <input type="number" id="new-envelope-target" placeholder="Target monthly goal ($)">
+            <input type="number" id="new-envelope-min" placeholder="Min safety threshold ($)">
+            <button onclick="createNewEnvelope()">Create Envelope</button>
         </div>
+
+        <!-- Must stay INSIDE #wallet: an early </div> here used to close the wallet page
+             first, leaving this stack a sibling of the tabs so it rendered on every one. -->
         <div id="envelopes-stack" class="cards-stack"></div>
     </div>
 
