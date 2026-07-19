@@ -1078,7 +1078,6 @@ function setupEventHandlers() {
             renderEntireViewport();
         }
     };
-}
 
 function renderEntireViewport() {
     if (typeof renderCharacterPanel === 'function') renderCharacterPanel();
