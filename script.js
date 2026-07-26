@@ -1358,13 +1358,48 @@ function setupEventHandlers() {
         };
     }
 
-    window.abandonQuest = function(id) {
-        const profile = state.profiles[state.activePlayer];
-        if (!profile) return;
-        saveProfileChange(profile.id, p => {
-            p.activeQuests = (p.activeQuests || []).filter(q => q.id !== id);
-        });
-    };
+    window.abandonQuest = function(questId) {
+    const modal = document.getElementById("confirm-modal");
+    const okBtn = document.getElementById("confirm-modal-ok");
+    const cancelBtn = document.getElementById("confirm-modal-cancel");
+
+    if (!modal || !okBtn || !cancelBtn) {
+        // Fallback safety if modal element is missing
+        if (confirm("Are you sure you want to abandon this quest?")) {
+            executeQuestAbandon(questId);
+        }
+        return;
+    }
+
+    // Show the custom modal overlay
+    modal.classList.remove("hidden");
+
+    // Clean up old click listeners to prevent double-firing
+    const newOkBtn = okBtn.cloneNode(true);
+    const newCancelBtn = cancelBtn.cloneNode(true);
+    okBtn.parentNode.replaceChild(newOkBtn, okBtn);
+    cancelBtn.parentNode.replaceChild(newCancelBtn, cancelBtn);
+
+    // Wire up user decisions
+    newCancelBtn.addEventListener("click", () => {
+        modal.classList.add("hidden");
+    });
+
+    newOkBtn.addEventListener("click", () => {
+        modal.classList.add("hidden");
+        executeQuestAbandon(questId);
+    });
+};
+
+// Helper function to handle the actual database deletion
+function executeQuestAbandon(questId) {
+    const profile = state.profiles[state.activePlayer];
+    if (!profile) return;
+
+    saveProfileChange(profile.id, p => {
+        p.activeQuests = (p.activeQuests || []).filter(q => q.id !== questId);
+    });
+}
 
     window.updateCharacterGender = function() {
         const sel = document.getElementById("hero-gender-select");
