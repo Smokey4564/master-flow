@@ -239,6 +239,100 @@ function normalizeProfile(profile, fallbackId) {
 }
 
 // ==========================================
+// IN-APP NOTIFICATION SYSTEM
+// ==========================================
+
+/**
+ * Displays a floating Toast pop-up and logs it to profile notifications
+ * @param {string} title - Short title for the alert
+ * @param {string} message - Description text
+ * @param {string} type - "success" | "warning" | "error" | "info"
+ * @param {string} category - "quest" | "wallet"
+ */
+window.showNotification = function(title, message, type = "info", category = "general") {
+    // 1. Render Toast Popup
+    const container = document.getElementById("toast-container");
+    if (container) {
+        const toast = document.createElement("div");
+        toast.className = `toast-card ${type}`;
+        toast.innerHTML = `
+            <div class="toast-title">${title}</div>
+            <div class="toast-msg">${message}</div>
+        `;
+        container.appendChild(toast);
+
+        // Auto-dismiss after 4 seconds
+        setTimeout(() => {
+            toast.style.opacity = "0";
+            toast.style.transform = "translateX(100px)";
+            setTimeout(() => toast.remove(), 300);
+        }, 4000);
+    }
+
+    // 2. Save Notification to Active Player Profile
+    const profile = state.profiles[state.activePlayer];
+    if (profile) {
+        saveProfileChange(profile.id, p => {
+            p.notifications = p.notifications || [];
+            p.notifications.unshift({
+                id: "notif_" + Date.now(),
+                title: title,
+                message: message,
+                type: type,
+                category: category,
+                read: false,
+                timestamp: new Date().toISOString()
+            });
+
+            // Cap history at 20 items to keep profile lightweight
+            if (p.notifications.length > 20) {
+                p.notifications = p.notifications.slice(0, 20);
+            }
+        });
+        
+        updateNotifBadge();
+    }
+};
+
+/**
+ * Updates the bell badge unread counter
+ */
+function updateNotifBadge() {
+    const badge = document.getElementById("notif-badge");
+    const profile = state.profiles[state.activePlayer];
+    if (!badge || !profile) return;
+
+    const unreadCount = (profile.notifications || []).filter(n => !n.read).length;
+    if (unreadCount > 0) {
+        badge.textContent = unreadCount;
+        badge.classList.remove("hidden");
+    } else {
+        badge.classList.add("hidden");
+    }
+}
+
+/**
+ * Toggle Bell Drawer / Mark Read
+ */
+window.toggleNotifDrawer = function() {
+    const profile = state.profiles[state.activePlayer];
+    if (!profile || !profile.notifications || profile.notifications.length === 0) {
+        window.showNotification("Notifications", "No recent alerts found.", "info");
+        return;
+    }
+
+    // Mark all as read when bell is tapped
+    saveProfileChange(profile.id, p => {
+        (p.notifications || []).forEach(n => n.read = true);
+    });
+    updateNotifBadge();
+
+    // Show latest alert summary toast
+    const latest = profile.notifications[0];
+    window.showNotification(`Latest (${latest.category.toUpperCase()})`, latest.message, latest.type);
+};
+
+// ==========================================
 // 🎵 AUDIO SYNTHESIZER SYSTEM ENGINE
 // ==========================================
 const SoundEngine = {
@@ -876,7 +970,12 @@ async function executeQuestResolution(questId, event) {
     SoundEngine.coin();
     if (navigator.vibrate) navigator.vibrate([100, 50, 100]); // Heavy Double Complete Pulse
     createHardwarePopupText(`✨ +${xpGain} XP\n🪙 +${goldGain} Gold`, event);
-
+    window.showNotification(
+    "⚔️ Quest Cleared!", 
+    `+${quest.xpReward || 0} XP & +${quest.goldReward || 0} Gold Coins earned!`, 
+    "success", 
+    "quest"
+);
     if (outcome.levelsGained > 0) {
         SoundEngine.levelUp();
         triggerLevelUpBreakoutModal(outcome.newLevel);
