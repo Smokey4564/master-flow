@@ -34,6 +34,10 @@
             <!-- Options are rendered at runtime from whoever is actually in this household -->
             <select id="global-player-select" onchange="window.switchPlayerProfile()" style="padding: 8px; font-size:0.9rem; flex: 2; height:38px; background:#27272a; color:white; border:1px solid var(--border); border-radius:6px;">
             </select>
+            <!-- Notification Bell Icon -->
+<button id="btn-notif-bell" class="notif-bell-btn" onclick="toggleNotifDrawer()">
+  🔔 <span id="notif-badge" class="notif-badge hidden">0</span>
+</button>
         </div>
     </div>
 
@@ -320,5 +324,7 @@
     </div>
   </div>
 </div>
+    <!-- In-App Toast Popup Container -->
+<div id="toast-container" class="toast-container"></div>
 </body>
 </html>
