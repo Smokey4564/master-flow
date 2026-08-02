@@ -1339,6 +1339,26 @@ function setupEventHandlers() {
                 if (p.walletLedger.some(l => l.ts === entry.ts && l.memo === entry.memo)) return;
                 env.balance += appliedAmount;
                 p.walletLedger.unshift({ ...entry });
+              // Red Zone Notification Check
+const threshold = (env.minThreshold !== undefined && env.minThreshold !== null) 
+                  ? Number(env.minThreshold) 
+                  : 20;
+
+if (env.balance <= threshold && env.balance > 0) {
+    window.showNotification(
+        "🚨 Red Zone Warning", 
+        `"${env.name}" envelope is down to $${env.balance.toFixed(2)}.`, 
+        "warning", 
+        "wallet"
+    );
+} else if (env.balance <= 0) {
+    window.showNotification(
+        "🛑 Envelope Depleted", 
+        `"${env.name}" has hit $0.00!`, 
+        "error", 
+        "wallet"
+    );
+}
             });
         };
     }
